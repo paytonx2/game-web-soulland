@@ -55,9 +55,10 @@ function startBattle(s, kind, opts = {}) {
 const baseAtk = e => (6 + e.level * 0.9 + (SOUL_BY_ID[e.soul].role === 'agile' ? e.agi : e.str) * 0.25) * e.mult * (e.buff > 0 ? 1.3 : 1);
 const skillCost = i => 8 + i * 5;
 
+const side = (b, x) => x === b.me ? 'me' : 'foe';
 function hit(b, att, def, raw, label) {
   const dodge = clamp(5 + (def.agi - att.agi) * 0.25, 3, 35) / 100;
-  if (Math.random() < dodge) { b.log.push({ t: `${def.name} หลบ${label}ได้!`, c: 'muted' }); return 0; }
+  if (Math.random() < dodge) { b.log.push({ t: `${def.name} หลบ${label}ได้!`, c: 'muted' }); b.anim.push({ a: side(b, att), t: 'miss', col: b._col }); return 0; }
   let dmg = raw * R.f(0.85, 1.15);
   const crit = Math.random() < 0.08 + att.luck / 2000;
   if (crit) dmg *= 1.6;
@@ -65,17 +66,18 @@ function hit(b, att, def, raw, label) {
   if (def.shield > 0) { dmg *= 0.4; def.shield--; }
   dmg = Math.max(1, Math.round(dmg));
   def.hp -= dmg;
+  b.anim.push({ a: side(b, att), t: 'hit', n: dmg, crit, col: b._col });
   b.log.push({ t: `${att.name} ใช้${label} ${crit ? '<b>คริติคอล!</b> ' : ''}สร้างความเสียหาย <b>${dmg}</b>`, c: att === b.me ? 'good' : 'bad' });
   return dmg;
 }
 
 function act(b, att, def, action) {
-  att.defending = false;
-  if (att.stun) { att.stun = false; b.log.push({ t: `${att.name} ถูกควบคุม ขยับไม่ได้!`, c: 'warn' }); return; }
+  att.defending = false; b._col = null;
+  if (att.stun) { att.stun = false; b.log.push({ t: `${att.name} ถูกควบคุม ขยับไม่ได้!`, c: 'warn' }); b.anim.push({ a: side(b, att), t: 'stun' }); return; }
   if (att.buff > 0) att.buff--;
   if (action === 'attack') { hit(b, att, def, baseAtk(att), 'การโจมตีปกติ'); att.en = Math.min(att.enMax, att.en + 5); return; }
   if (action === 'defend') {
-    att.defending = true; att.en = Math.min(att.enMax, att.en + 15);
+    att.defending = true; b.anim.push({ a: side(b, att), t: 'def' }); att.en = Math.min(att.enMax, att.en + 15);
     att.hp = Math.min(att.hpMax, att.hp + Math.round(att.hpMax * 0.04));
     b.log.push({ t: `${att.name} ตั้งท่าป้องกันและรวบรวมพลังวิญญาณ`, c: 'muted' });
     return;
@@ -83,13 +85,14 @@ function act(b, att, def, action) {
   // ทักษะวงแหวน
   const i = +action.split(':')[1], years = att.rings[i];
   att.en -= skillCost(i);
+  b._col = RING_TIERS[ringTierOf(years)].color;
   const role = SOUL_BY_ID[att.soul].role;
   const pow = baseAtk(att) * (1.2 + ringPower(years) / 35);
   const name = `ทักษะวงแหวนที่ ${i + 1} 「${SKILL_NAMES[role][i]}」`;
   if (role === 'control') { if (hit(b, att, def, pow * 0.7, name) && Math.random() < 0.55) { def.stun = true; b.log.push({ t: `${def.name} ถูกพันธนาการ!`, c: 'warn' }); } }
   else if (role === 'defense') { att.shield = 2; hit(b, att, def, pow * 0.6, name); }
-  else if (role === 'support' || role === 'food') { att.buff = 3; b.log.push({ t: `${att.name} ใช้${name} พลังโจมตีเพิ่มขึ้น 30%`, c: 'muted' }); hit(b, att, def, pow * 0.5, 'แรงกระแทกของทักษะ'); }
-  else if (role === 'heal') { const h = Math.round(pow * 1.2); att.hp = Math.min(att.hpMax, att.hp + h); b.log.push({ t: `${att.name} ใช้${name} ฟื้นฟู ${h} HP`, c: 'good' }); hit(b, att, def, pow * 0.3, 'พลังวิญญาณ'); }
+  else if (role === 'support' || role === 'food') { att.buff = 3; b.anim.push({ a: side(b, att), t: 'buff', col: b._col }); b.log.push({ t: `${att.name} ใช้${name} พลังโจมตีเพิ่มขึ้น 30%`, c: 'muted' }); hit(b, att, def, pow * 0.5, 'แรงกระแทกของทักษะ'); }
+  else if (role === 'heal') { const h = Math.round(pow * 1.2); att.hp = Math.min(att.hpMax, att.hp + h); b.anim.push({ a: side(b, att), t: 'heal', n: h }); b.log.push({ t: `${att.name} ใช้${name} ฟื้นฟู ${h} HP`, c: 'good' }); hit(b, att, def, pow * 0.3, 'พลังวิญญาณ'); }
   else hit(b, att, def, pow, name);
 }
 
@@ -104,6 +107,7 @@ function foeAI(b) {
 function battleAction(s, action) {
   const b = s.battle;
   if (!b || b.over) return;
+  b.anim = [];
   if (action === 'surrender') { b.over = true; b.result = 'surrender'; b.log.push({ t: 'คุณยอมแพ้', c: 'bad' }); return; }
   if (action.startsWith('skill:') && b.me.en < skillCost(+action.split(':')[1])) return;
   b.log.push({ t: `— เทิร์น ${b.turn} —`, c: 'turn' });
@@ -119,6 +123,7 @@ function finishBattle(s) {
   if (!b || !b.over) return;
   s._delta = [];
   s.battle = null;
+  const seg0 = segStart(s);
   const K = BATTLE_KINDS[b.kind];
   const won = b.result === 'win';
   // บาดแผลจากการต่อสู้ติดตัวกลับมา
@@ -145,5 +150,7 @@ function finishBattle(s) {
     }
   }
   if (s.alive && b.eid && EVENTS[b.eid].battleEnd) EVENTS[b.eid].battleEnd(s, won);
+  if (s.alive && won) questHook(s, 'battle', b.eid || b.kind);
+  segEnd(s, seg0);
   presentNext(s);
 }

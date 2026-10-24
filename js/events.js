@@ -70,7 +70,7 @@ E('grad12', {
   forced: true, when: s => s.age >= 12 && cult(s) && G(s) === 'school', scene: 'academy',
   make: s => {
     const L = lvl(s);
-    const pShrek = L >= 25 && s.age <= 13 ? pct(0.35 + (L - 25) * 0.06 + combatPower(s) / 1500 + s.luck / 400) : 0;
+    const pShrek = L >= 25 && s.age <= 13 ? pct(0.35 + (L - 25) * 0.06 + combatPower(s) / 1500 + s.luck / 400 + (s.flags.shrekPrep ? 0.15 : 0)) : 0;
     const sects = [...SECTS].sort(() => Math.random() - 0.5).slice(0, 2);
     return {
       title: '🎓 ทางแยกครั้งใหญ่ อายุ 12 ปี', text: `คุณมีพลังวิญญาณระดับ ${L} ถึงเวลาเลือกว่าวัยรุ่นของคุณจะไปทางไหน`,

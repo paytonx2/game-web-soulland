@@ -256,9 +256,24 @@ function drawScene(canvas, spec) {
     sprite(BEAST, { b: spec.beastColor || '#2a2a2a', e: '#ff4a3a' }, 180, feet - 32, 4, true);
     glow(190, feet - 22, 8, '#ff3a2a', 0.35);
   } else if (spec.foe) {
-    person(110, feet, hero);
-    person(190, feet, { ...spec.foe, flip: true });
-    for (let i = 0; i < 6; i++) px(150 + r() * 30, feet - 30 + r() * 20, 2, 2, '#fff2a0');
+    const A = spec.anim || {};
+    if (A.aura) glow(A.aura.x, feet - 18, 20, A.aura.color, A.aura.a);
+    person(110 + (A.hx || 0), feet, hero);
+    person(190 + (A.fx || 0), feet, { ...spec.foe, flip: true });
+    if (!spec.anim) for (let i = 0; i < 6; i++) px(150 + r() * 30, feet - 30 + r() * 20, 2, 2, '#fff2a0');
+    if (A.burst) {
+      const B = A.burst;
+      X.save(); X.globalAlpha = B.a; X.strokeStyle = B.color; X.lineWidth = 3;
+      X.beginPath(); X.ellipse(B.x, feet - 16, B.r, B.r * 0.55, 0, 0, Math.PI * 2); X.stroke();
+      X.lineWidth = 1; X.beginPath(); X.ellipse(B.x, feet - 16, B.r * 0.6, B.r * 0.33, 0, 0, Math.PI * 2); X.stroke();
+      X.restore(); glow(B.x, feet - 18, B.r * 0.7, B.color, B.a * 0.45);
+    }
+    if (A.slash) {
+      const S2 = A.slash; X.save(); X.globalAlpha = S2.a; X.strokeStyle = S2.color || '#fff6d0'; X.lineWidth = 2;
+      for (let k = -1; k <= 1; k++) { X.beginPath(); X.moveTo(S2.x - 14, feet - 34 + k * 7); X.lineTo(S2.x + 14, feet - 14 + k * 7); X.stroke(); }
+      X.restore();
+    }
+    if (A.flash) { X.save(); X.globalAlpha = A.flash.a; px(0, 0, W, H, A.flash.color); X.restore(); }
   } else if (spec.partner) {
     person(130, feet, hero);
     person(164, feet, { ...spec.partner, flip: true });

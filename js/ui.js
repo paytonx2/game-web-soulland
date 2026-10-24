@@ -118,7 +118,7 @@ function chip(k, n) {
 const chips = fx => (fx || []).map(([k, n]) => chip(k, n)).join('');
 
 // ---------- วาดทั้งหมด ----------
-function render() { renderTop(); renderLeft(); renderScene(); renderTimeline(); renderStory(); renderEvent(); }
+function render() { renderTop(); renderLeft(); renderScene(); renderStory(); renderEvent(); }
 
 function renderTop() {
   const s = S;
@@ -246,11 +246,6 @@ function renderScene() {
   lastFx = [];
 }
 
-function renderTimeline() {
-  const a = Math.min(S.age, 100), ls = Math.min(100, lifespan(S));
-  $('timeline').innerHTML = `<div class="tl-track"><div class="tl-fill" style="width:${a}%"></div><div class="tl-life" style="left:${ls}%" title="อายุขัยโดยประมาณ"></div><div class="tl-knob" style="left:${a}%"></div></div>
-    <div class="tl-ticks">${[0, 20, 40, 60, 80, 100].map(t => `<span>${t}</span>`).join('')}</div>`;
-}
 function yearTone(y) {
   const cs = y.lines.map(l => l.c);
   if (cs.includes('death')) return 'death';
@@ -263,15 +258,6 @@ function lifeMapHtml(s) {
   s.log.forEach(y => tone[y.age] = yearTone(y));
   return `<div class="lifemap">${Array.from({ length: 100 }, (_, i) => `<i class="${tone[i] || ''} ${i === s.age && s.alive ? 'now' : ''}" title="อายุ ${i}"></i>`).join('')}</div>`;
 }
-// ไทม์ไลน์ทวีปตามนิยาย รอบ ๆ ปีปัจจุบัน
-function worldTimelineHtml(s) {
-  const wy = worldYear(s);
-  const near = CANON_TIMELINE.filter(c => c.wy >= wy - 8 && c.wy <= wy + 10);
-  const past = near.filter(c => c.wy <= wy).slice(-3), fut = near.filter(c => c.wy > wy).slice(0, 3);
-  if (!past.length && !fut.length) return '<div class="note">ช่วงนี้ทวีปค่อนข้างสงบ</div>';
-  const row = (c, cls) => `<div class="wt ${cls}"><span class="wy">${c.wy === wy ? 'ปีนี้' : c.wy < wy ? `${wy - c.wy} ปีก่อน` : `อีก ${c.wy - wy} ปี`}</span><span>${c.t}</span></div>`;
-  return past.map(c => row(c, c.wy === wy ? 'now' : 'past')).join('') + fut.map(c => row(c, 'future')).join('');
-}
 function renderStory() {
   const s = S;
   const peer = p => {
@@ -279,30 +265,64 @@ function renderStory() {
     const st = !p.alive ? `☠️ ${p.cause} (อายุ ${p.deathAge})` : s.age < 6 ? `${lifeStage(s.age)} · ${PLACES.find(x => x.id === p.place).th}` : p.innate ? `Lv.${Math.floor(p.level)} · ${soul.th} · วงแหวน ${p.rings}` : `คนธรรมดา · ${soul.th}`;
     return `<div class="peer ${p.alive ? '' : 'dead'}"><b>${p.name}</b> ${p.g === 'M' ? '♂' : '♀'}<small>${st}</small></div>`;
   };
-  $('storyBox').innerHTML = `<h3>📖 เรื่องราวปีนี้ <small>อายุ ${s.age} ปี · ปีทวีป ${WORLD_EPOCH + worldYear(s)}</small></h3>
-    ${feedHtml(s) || '<div class="note">ปีนี้ยังไม่มีเรื่องราว — เลือกสิ่งที่จะทำตรงกลางได้เลย</div>'}
-    ${s.news ? `<div class="news"><span class="tag">ข่าว</span><span>${s.news}</span></div>` : ''}
-    <h3>📜 ไทม์ไลน์ทวีป <small>ตามนิยาย</small></h3><div class="wtl">${worldTimelineHtml(s)}</div>
-    <h3>🗺️ แผนที่ชีวิต <small>1 ช่อง = 1 ปี</small></h3>${lifeMapHtml(s)}
-    <h3>👥 เกิดปีเดียวกัน</h3><div class="peers">${s.peers.map(peer).join('')}</div>`;
-  const rb = $('storyBox').querySelector('.result:not(.old)'); if (rb) rb.scrollTop = rb.scrollHeight;
+  const d = s.feedD || {}, sum = Object.entries(d).map(([k, n]) => chip(k, n)).join('');
+  $('storyBox').innerHTML = `<div class="yhead"><div class="yage"><b>${s.age}</b><small>ปี</small></div><div class="yt"><b>เรื่องราวปีนี้</b><small>${lifeStage(s.age)} · ${pathOf(s).th} · ปีทวีป ${WORLD_EPOCH + worldYear(s)}</small></div></div>
+    ${s.news ? `<div class="news"><span class="tag">ข่าวทวีป</span><span>${s.news}</span></div>` : ''}
+    <div class="entries" id="entries">${feedHtml(s) || '<div class="entry calm empty"><div class="eh"><span class="ek">ต้นปี</span><b>ปีใหม่เริ่มต้นขึ้น</b></div><div class="eb"><p class="flav">ยังไม่มีเรื่องราว — เลือกสิ่งที่จะทำตรงกลาง แล้วเรื่องราวของคุณจะถูกบันทึกที่นี่</p></div></div>'}</div>
+    ${sum ? `<div class="ysum"><span>รวมผลทั้งปี</span><div class="chips">${sum}</div></div>` : ''}
+    ${questBoxHtml(s)}
+    <details class="peersbox"><summary>👥 คนที่เกิดปีเดียวกับคุณ (${s.peers.filter(p => p.alive).length}/${s.peers.length} ยังมีชีวิต)</summary><div class="peers">${s.peers.map(peer).join('')}</div></details>`;
+  const en = $('entries'); if (en) en.scrollTop = en.scrollHeight;
 }
 
 // ---------- กล่องทางแยกของชีวิต ----------
 let keyMap = [];
+// หนึ่งบรรทัดของบันทึก: แถวชิป = ผลที่ได้จากสาเหตุก่อนหน้า
+function lineHtml(l) {
+  if (l.c === 'chips') return Array.isArray(l.d) ? `<div class="chips seg">${chips(l.d)}</div>` : '';
+  return `<p class="${l.c}">${l.t}</p>`;
+}
+// แบ่งบันทึกของปีเป็น "ตอน": ทุกกิจกรรม/ทุกการตัดสินใจเริ่มตอนใหม่ พร้อมเหตุผลและผลลัพธ์ของมัน
+function storyEntries(feed) {
+  const out = []; let cur = null;
+  for (const l of feed) {
+    const head = l.c === 'act' || l.c === 'pick';
+    if (head || !cur || cur.age !== l.age) {
+      cur = { age: l.age, head: head ? l : null, lines: [] }; out.push(cur);
+      if (head) continue;
+    }
+    cur.lines.push(l);
+  }
+  return out;
+}
+function entryHtml(e, i, isNew, first) {
+  const tone = yearTone(e), h = e.head;
+  let head;
+  if (h && h.c === 'pick') head = `<div class="eh"><span class="ek">ทางแยก</span><b>${h.d || 'การตัดสินใจ'}</b></div><div class="es">${h.t.replace('▸ ', '')}</div>`;
+  else if (h) head = `<div class="eh"><span class="ek">${h.t.startsWith('🤖') ? 'ทำตามนิสัย' : 'กิจกรรม'}</span><b>${h.t.replace('🤖 ', '')}</b></div>`;
+  else head = `<div class="eh"><span class="ek">${first ? 'ต้นปี' : 'ชีวิตดำเนินไป'}</span><b>${first ? `เข้าสู่อายุ ${e.age} ปี` : `อายุ ${e.age} ปี`}</b></div>`;
+  const body = e.lines.map(lineHtml).join('');
+  return `<article class="entry ${tone} ${isNew ? 'new' : ''}">${head}${body ? `<div class="eb">${body}</div>` : ''}</article>`;
+}
+let shownFeed = 0;
 function feedHtml(s) {
   let prev = '';
-  if (s.prevFeed && s.prevFeed.length) prev = '<details class="prev"><summary>📜 สรุปปีที่แล้ว (อายุ ' + s.prevFeed[0].age + ' ปี)</summary><div class="result old">' + s.prevFeed.map(l => '<p class="' + l.c + '">' + l.t + '</p>').join('') + '</div></details>';
-  if (!s.feed || !s.feed.length) return prev;
-  let h = '', age = null;
-  for (const l of s.feed) {
-    if (l.age !== age && age !== null) h += `<div class="agesep">อายุ ${l.age} ปี</div>`;
-    age = l.age;
-    h += `<p class="${l.c}">${l.t}</p>`;
-  }
-  const d = s.feedD || {};
-  const cs = Object.entries(d).map(([k, n]) => chip(k, n)).join('');
-  return prev + `<div class="result">${h}${cs ? `<div class="chips">${cs}</div>` : ''}</div>`;
+  if (s.prevFeed && s.prevFeed.length) prev = `<details class="prev"><summary>📜 ย้อนดูปีที่แล้ว (อายุ ${s.prevFeed[0].age} ปี)</summary>${storyEntries(s.prevFeed).map((e, i) => entryHtml(e, i, false, i === 0)).join('')}</details>`;
+  if (!s.feed || !s.feed.length) { shownFeed = 0; return prev; }
+  const es = storyEntries(s.feed), grew = s.feed.length > shownFeed;
+  shownFeed = s.feed.length;
+  return prev + es.map((e, i) => entryHtml(e, i, grew && i === es.length - 1, i === 0)).join('');
+}
+// ภารกิจที่กำลังทำ
+function questBoxHtml(s) {
+  const qs = s.quests || [];
+  if (!qs.length) return '';
+  return `<div class="quests"><div class="qhead">📜 ภารกิจที่รับไว้</div>${qs.map(a => {
+    const q = QUESTS[a.id], left = a.until - s.age;
+    const tag = a.finale ? '<span class="qleft go">⚔️ พร้อมปะทะ</span>' : `<span class="qleft ${left <= 1 ? 'urg' : ''}">เหลือ ${Math.max(0, left)} ปี</span>`;
+    const bar = q.steps > 1 ? `<div class="qbar"><b style="width:${a.prog / q.steps * 100}%"></b></div><small>${a.prog}/${q.steps}</small>` : '';
+    return `<div class="qcard"><div class="qt">${q.icon} <b>${q.th}</b>${tag}</div><div class="qd">🎯 ${q.hint}</div>${bar ? `<div class="qprog">${bar}</div>` : ''}</div>`;
+  }).join('')}</div>`;
 }
 function optHtml(c, i) {
   const rt = c.ring ? RING_TIERS.find(r => r.id === c.ring) : null;
@@ -361,11 +381,65 @@ function battleHtml(b) {
     b.me.rings.forEach((y, i) => acts.push([`skill:${i}`, `วงแหวนที่ ${i + 1}「${SKILL_NAMES[role][i]}」`, `${ROLE_TH[role]} · ${fmt(y)} ปี`, `<div class="side">ใช้พลัง<b>${skillCost(i)}</b></div>`, b.me.en < skillCost(i), RING_TIERS[ringTierOf(y)].color]));
     acts.push(['surrender', '🏳️ ยอมแพ้', K.surrenderDeath ? 'คู่ต่อสู้อาจไม่ไว้ชีวิต' : 'ยุติการประลอง', K.surrenderDeath ? `<div class="side dead">เสี่ยงตาย<b>${Math.round(K.surrenderDeath * 100)}%</b></div>` : '', false, '']);
     acts.forEach(([a, t, d, side, dis, col], i) => {
-      keyMap.push(() => { if (!dis) { battleAction(S, a); save(); renderScene(); renderEvent(); } });
+      keyMap.push(() => { if (!dis && !animBusy) { battleAction(S, a); save(); playBattle(S.battle, () => { renderScene(); renderEvent(); }); } });
       h += opt(i, t, d, side, dis, col);
     });
   }
   return h + '</div>';
+}
+
+// ---------- แอนิเมชันการต่อสู้: พุ่งเข้าใส่ · แสงวงแหวน · ตัวเลขความเสียหาย ----------
+let animBusy = false;
+const POS = { me: 110, foe: 190 };
+function floatNum(text, x, cls) {
+  const fr = $('scene').closest('.scene-frame'), el = document.createElement('div');
+  el.className = 'dmg ' + cls; el.textContent = text;
+  el.style.left = (x / 320 * 100) + '%';
+  fr.appendChild(el); setTimeout(() => el.remove(), 1100);
+}
+function playBattle(b, done) {
+  const seq = (b && b.anim) || [];
+  if (!seq.length) return done();
+  animBusy = true; $('eventBox').classList.add('busy');
+  const canvas = $('scene'), fr = canvas.closest('.scene-frame'), base = sceneSpec(S);
+  let i = 0;
+  const next = () => {
+    if (i >= seq.length) { animBusy = false; $('eventBox').classList.remove('busy'); return done(); }
+    const ev = seq[i++], me = ev.a === 'me', self = me ? POS.me : POS.foe, tgt = me ? POS.foe : POS.me, dir = me ? 1 : -1;
+    const T = ev.t === 'hit' || ev.t === 'miss' ? 520 : 420, t0 = performance.now();
+    let shown = false;
+    const frame = now => {
+      const t = Math.min(1, (now - t0) / T), A = {};
+      if (ev.t === 'hit' || ev.t === 'miss') {
+        const lunge = Math.sin(Math.min(1, t / 0.5) * Math.PI) * 40 * dir;
+        A[me ? 'hx' : 'fx'] = Math.round(lunge);
+        if (ev.col) A.aura = { x: self + lunge, color: ev.col, a: 0.5 * (1 - t) };
+        if (t > 0.3) {
+          const k = (t - 0.3) / 0.7;
+          if (ev.t === 'hit') {
+            A[me ? 'fx' : 'hx'] = Math.round(Math.sin(k * Math.PI * 6) * 3 * (1 - k) + dir * 4 * (1 - k));
+            A.slash = { x: tgt, a: 1 - k, color: ev.col };
+            if (ev.col) A.burst = { x: tgt, r: 8 + k * 30, color: ev.col, a: 1 - k };
+            if (ev.crit && k < 0.4) A.flash = { color: '#fff3c4', a: 0.45 * (1 - k / 0.4) };
+          } else A[me ? 'fx' : 'hx'] = Math.round(-dir * 14 * Math.sin(k * Math.PI));
+          if (!shown) {
+            shown = true;
+            if (ev.t === 'miss') floatNum('หลบ!', tgt, 'miss');
+            else { floatNum((ev.crit ? 'คริ! ' : '') + '−' + ev.n, tgt, (me ? 'out' : 'in') + (ev.crit ? ' crit' : '')); if (ev.crit) { fr.classList.remove('shake'); void fr.offsetWidth; fr.classList.add('shake'); } }
+          }
+        }
+      } else {
+        const col = { heal: '#7fe8a0', buff: '#ffd36a', def: '#8ec5ff', stun: '#c58bff' }[ev.t] || ev.col;
+        A.burst = { x: self, r: 6 + t * 26, color: col, a: 1 - t };
+        A.aura = { x: self, color: col, a: 0.5 * (1 - t) };
+        if (!shown) { shown = true; floatNum({ heal: '+' + ev.n, buff: 'พลัง↑', def: 'ตั้งรับ', stun: 'ถูกควบคุม' }[ev.t], self, ev.t); }
+      }
+      drawScene(canvas, { ...base, anim: A });
+      if (t < 1) requestAnimationFrame(frame); else { drawScene(canvas, { ...base, anim: {} }); setTimeout(next, 90); }
+    };
+    requestAnimationFrame(frame);
+  };
+  next();
 }
 
 // ---------- overlay ----------
@@ -375,18 +449,35 @@ function closeOverlay() { $('overlay').hidden = true; }
 function showLanding() {
   const sv = load();
   const canContinue = sv && sv.alive && sv.v === 4;
+  const gr = graves();
   const legend = [['hp', 'สุขภาพ'], ['soul', 'พลังวิญญาณ'], ['str', 'พละกำลัง'], ['agi', 'ความว่องไว'], ['spi', 'พลังจิต'], ['wis', 'ปัญญา'], ['mood', 'อารมณ์'], ['luck', 'โชค'], ['fame', 'ชื่อเสียง'], ['money', 'เหรียญทอง']];
-  overlay(`<div class="landing">
-    <div class="scene-frame"><canvas id="ovScene" width="320" height="180"></canvas><div class="scene-cap">ยามเย็น · นครหลวงเทียนโต่ว</div></div>
-    <div class="panel">
-      <h1 class="title">เกิดในโลกวิญญาจารย์</h1>
-      <div class="subtitle">斗罗大陆 · A DOULUO LIFE</div>
-      <p>เกิดเป็นใครเลือกไม่ได้ ระบบสุ่มชื่อ เพศ บ้านเกิด ฐานะ และวิญญาณยุทธ์ คุณเกิดในยุคเดียวกับ<b>ถังซาน</b> แต่ละปีมีกิจกรรมให้ทำมากมาย บำเพ็ญ เรียน หาเงิน ผจญภัยป่าดาวซิงโต่ว ประลองที่ซั่วทัว ซื้ออาวุธลับสำนักถัง และมีทางแยกของชีวิตให้ตัดสินใจ อาจได้พบเสี่ยวอู่ เจ็ดประหลาดแห่งเชร็ค หรือถูกตำหนักวิญญาณยุทธ์ไล่ล่า ความตายรออยู่ทุกทางแยก และหากพรสวรรค์โดดเด่นพอ เทพอาจเลือกคุณเป็นผู้สืบทอด</p>
+  const feats = [
+    ['🎲', 'เกิดเป็นใครก็ได้', 'ชื่อ เพศ บ้านเกิด ฐานะ และวิญญาณยุทธ์ถูกสุ่มทั้งหมด ลูกชาวนาหรือองค์ชายก็เป็นได้'],
+    ['🍀', 'โชคพลิกชะตา', 'ยิ่งดวงดี ยิ่งมีโอกาสปลุกได้วิญญาณยุทธ์ชั้นยอด แม้เกิดในกระท่อมก็ยังเปลี่ยนชีวิตได้'],
+    ['📜', 'ภารกิจและทางแยก', 'ภารกิจระหว่างทาง คู่ปรับตลอดกาล สายเลือดลับ ทุกการเลือกมีผลและมีเหตุผลรองรับ'],
+    ['⚔️', 'ประลองแบบเทิร์น', 'ใช้ทักษะวงแหวนสู้ศัตรู จะประลองมิตรภาพหรือประลองเป็นตายก็ได้ แต่ความตายรออยู่ทุกที่'],
+    ['🔱', 'สืบทอดเทพ', 'อัจฉริยะที่โดดเด่นพอ เทพสมุทร เทพอสูร หรือเทพองค์อื่นอาจเลือกคุณ แต่บททดสอบโหดร้าย'],
+    ['📖', 'เรื่องเล่าของคุณ', 'เมื่อสิ้นอายุขัย ชีวิตทั้งหมดถูกเรียบเรียงเป็นเรื่องเล่า บันทึกเป็นรูปหรือแชร์ให้เพื่อนได้'],
+  ];
+  overlay(`<div class="land">
+    <section class="hero">
+      <canvas id="ovScene" width="320" height="180"></canvas>
+      <div class="hero-in">
+        <div class="emblem" aria-hidden="true">${['#f5f5f5', '#f5c518', '#9b4dff', '#1b1b1b', '#e0263a', '#ffb02e'].map((c, i) => `<i style="--c:${c};--i:${i}"></i>`).join('')}<span>魂</span></div>
+        <div class="kicker">斗罗大陆 · DOULUO LIFE SIMULATOR</div>
+        <h1 class="title">เกิดในโลกวิญญาจารย์</h1>
+        <p class="lede">ชีวิตหนึ่งชีวิต ในยุคเดียวกับ<b>ถังซาน</b> เลือกเกิดไม่ได้ แต่เลือกทางเดินได้ทุกปี</p>
+        <div class="btns cta"><button class="pbtn big" id="ovBorn">✦ เริ่มชีวิตใหม่</button>${canContinue ? `<button class="pbtn ghost" id="ovCont">ใช้ชีวิตต่อ · ${sv.name} อายุ ${sv.age}</button>` : ''}</div>
+        ${gr.length ? `<div class="hero-note">🪦 หอบรรพชนของคุณมี ${gr.length} ชีวิต · สูงสุด Lv.${Math.max(...gr.map(g => g.level))}</div>` : ''}
+      </div>
+    </section>
+    <section class="feats">${feats.map(([i, t, d]) => `<div class="feat"><span class="fi">${i}</span><b>${t}</b><small>${d}</small></div>`).join('')}</section>
+    <details class="howto"><summary>❓ ค่าสถานะแต่ละตัวหมายถึงอะไร · วิธีเล่น</summary>
       <div class="legend">${legend.map(([k, t]) => `<div><span>${IC[k]}</span><b>${t}</b><small>${STAT_HELP[k]}</small></div>`).join('')}</div>
-      <div class="note">ทุกตัวเลือกบอกผลล่วงหน้า · กดเลข 1–9 เพื่อเลือก</div>
-      <div class="btns"><button class="pbtn" id="ovBorn">เกิด</button>${canContinue ? `<button class="pbtn ghost" id="ovCont">ใช้ชีวิตต่อ (${sv.name} อายุ ${sv.age})</button>` : ''}</div>
-    </div></div>`);
-  drawScene($('ovScene'), { kind: 'city', tod: 'dusk', place: 'tiandou', seed: 7, hero: { age: 20, gender: 'M', cloth: '#3a5f9a', rings: ['#f5c518', '#9b4dff', '#9b4dff', '#1b1b1b'], aura: '#7ee3a6' }, foe: { age: 20, gender: 'F', cloth: '#a8436a', rings: ['#f5c518', '#f5c518', '#9b4dff'], aura: '#c79bff' } });
+      <div class="note">ทุกปีมีแต้มเวลาให้ใช้ทำกิจกรรม · ทุกตัวเลือกบอกผลล่วงหน้า · กดเลข 1–9 เพื่อเลือก · Enter = ปีถัดไป · Space = หยุดเวลา</div>
+    </details>
+  </div>`);
+  drawScene($('ovScene'), { kind: 'city', tod: 'dusk', place: 'tiandou', seed: 7, hero: { age: 20, gender: 'M', cloth: '#3a2a12', rings: ['#f5c518', '#9b4dff', '#9b4dff', '#1b1b1b'], aura: '#ffd36a' }, foe: { age: 20, gender: 'F', cloth: '#5a1a1a', rings: ['#f5c518', '#f5c518', '#9b4dff'], aura: '#ff9d4a' } });
   $('ovBorn').onclick = showBirth;
   if (canContinue) $('ovCont').onclick = () => { S = sv; closeOverlay(); startGame(); };
 }
@@ -397,6 +488,14 @@ function tierPerks(s) {
   const good = Math.round((w[3] + w[4]) / tot * 100), legend = (w[4] / tot * 100).toFixed(1);
   const stats = ['str', 'agi', 'spi', 'wis'].map(k => `${IC[k]} ${s[k]}`).join(' · ');
   const row = (ic, t, v, cls = '') => `<div class="perk ${cls}"><span>${ic} ${t}</span><b>${v}</b></div>`;
+  const lw = w.map((x, i) => x * Math.pow(1 + (s.luck - 50) / 100, i)), lt = lw.reduce((a, b) => a + b, 0);
+  const lgood = Math.round((lw[3] + lw[4]) / lt * 100), lf = (s.luck - 50) / 50;
+  const miracle = s.luck >= 80 ? Math.round((s.luck - 70)) : 0;
+  const luckBox = `<div class="luckbox ${s.luck >= 70 ? 'hi' : s.luck < 35 ? 'lo' : ''}"><div class="lh">🍀 ดวงชะตา ${s.luck}/100 <small>${s.luck >= 80 ? 'ฟ้าลิขิตให้โดดเด่น' : s.luck >= 60 ? 'ดวงดี' : s.luck >= 35 ? 'ดวงปานกลาง' : 'ดวงตก'}</small></div>
+    <div class="lrow"><span>โอกาสได้วิญญาณยุทธ์ยอดเยี่ยมขึ้นไป</span><b>${good}% → <em>${lgood}%</em></b></div>
+    <div class="lrow"><span>โอกาสไร้พลังวิญญาณ</span><b>${Math.round(f.p0 * 100)}% → <em>${Math.round(f.p0 * (1 - 0.4 * lf) * 100)}%</em></b></div>
+    ${miracle ? `<div class="lrow gold"><span>✨ ปาฏิหาริย์ตอนปลุก (ถ้าได้วิญญาณยุทธ์ธรรมดา)</span><b>${miracle}%</b></div>` : ''}
+    <div class="lnote">${s.luck >= 70 ? 'ด้วยดวงขนาดนี้ แม้เกิดมาลำบากก็มีโอกาสพลิกชีวิตตอนพิธีปลุกอายุ 6 ขวบ' : 'โชคมีผลต่อพิธีปลุกวิญญาณยุทธ์ตอน 6 ขวบ และโชคเพิ่มได้ระหว่างทาง'}</div></div>`;
   return `<div class="perks"><div class="ph">⚖️ ชะตาตามฐานะ <small>ยิ่งฐานะดียิ่งได้เปรียบ แต่ทุกคนมีโอกาส</small></div>
     ${row('🌀', 'ตัวคูณการฝึก', '×' + f.train, f.train >= 1.08 ? 'up' : f.train < 1 ? 'dn' : '')}
     ${row('🏥', 'คุณภาพการรักษาเมื่อป่วย', Math.round(f.care * 100) + '%', f.care >= 0.85 ? 'up' : f.care < 0.65 ? 'dn' : '')}
@@ -404,7 +503,7 @@ function tierPerks(s) {
     ${row('🐉', 'โอกาสวิญญาณยุทธ์ยอดเยี่ยมขึ้นไป', good + '% (ตำนาน ' + legend + '%)', good >= 17 ? 'up' : good <= 11 ? 'dn' : '')}
     ${row('🔥', 'โอกาสพลังเต็มขั้น 10', (f.full * 100).toFixed(1) + '%', '')}
     ${row('💰', 'ครอบครัวส่งเสียต่อปี', s.bg === 'orphan' ? 'ไม่มี (กำพร้า)' : f.income * 0.25 < 1 ? 'แทบไม่มี' : fmt(f.income * 0.25) + ' เหรียญ', f.income >= 80 ? 'up' : f.income <= 4 ? 'dn' : '')}
-    <div class="perk"><span>📊 ค่าเริ่มต้น</span><b>${stats}</b></div></div>`;
+    <div class="perk"><span>📊 ค่าเริ่มต้น</span><b>${stats}</b></div></div>${luckBox}`;
 }
 function showBirth() {
   const s = newLife();
@@ -508,7 +607,7 @@ function showTomb() {
 }
 function showLog() {
   overlay(`<div class="panel tomb-card" style="width:min(760px,100%)"><h2 class="title" style="font-size:28px">📜 บันทึกชีวิต</h2>
-    <div>${S.log.map(y => `<div class="logyear"><span class="a">${y.age} ปี</span><div>${y.lines.map(l => `<p class="${l.c}">${l.t}</p>`).join('') || '<p class="muted">ชีวิตดำเนินไปอย่างเรียบง่าย</p>'}</div></div>`).join('')}</div>
+    <div>${S.log.map(y => `<div class="logyear"><span class="a">${y.age} ปี</span><div>${y.lines.map(lineHtml).join('') || '<p class="muted">ชีวิตดำเนินไปอย่างเรียบง่าย</p>'}</div></div>`).join('')}</div>
     <div class="btns" style="justify-content:center"><button class="pbtn" id="ovClose">ปิด</button></div></div>`);
   $('ovClose').onclick = closeOverlay;
 }

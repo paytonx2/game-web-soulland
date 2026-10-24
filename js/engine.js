@@ -95,21 +95,23 @@ function genName(gender, clanSur) {
 
 // ---------- กำเนิด ----------
 // พลังวิญญาณแต่กำเนิด: ฐานะดีได้เปรียบเล็กน้อย แต่คนจนก็ลุ้นพลังเต็มขั้นได้
-function rollInnate(tier) {
-  const fam = FAMILY_TIERS[tier - 1];
-  if (R.chance(fam.p0)) return 0;
-  if (R.chance(fam.full)) return 10;
+// โชค (1–100) ขยับโอกาส: โชคสูงไม่ค่อยไร้พลัง ได้พลังสูงและพลังเต็มขั้นบ่อยขึ้น
+function rollInnate(tier, luck = 50) {
+  const fam = FAMILY_TIERS[tier - 1], lf = (luck - 50) / 50;
+  if (R.chance(fam.p0 * (1 - 0.4 * lf))) return 0;
+  if (R.chance(fam.full * (1 + 1.5 * Math.max(0, lf)))) return 10;
   let v = R.i(1, 6);
-  if (R.chance(fam.innUp)) v += R.i(1, 3);
+  if (R.chance(fam.innUp * (1 + 0.7 * lf))) v += R.i(1, 3);
   if (R.chance(0.06)) v += R.i(1, 2); // พรสวรรค์ที่ไม่สนชนชั้น
   return clamp(v, 1, 9);
 }
-function rollSoul(tier, minTier = 1) {
-  const w = FAMILY_TIERS[tier - 1].soulW;
+// โชคดันน้ำหนักไปทางวิญญาณยุทธ์ระดับสูง (คนจนดวงดีก็ได้ของดีได้)
+function rollSoul(tier, minTier = 1, luck = 50) {
+  const w = FAMILY_TIERS[tier - 1].soulW.map((x, i) => x * Math.pow(1 + (luck - 50) / 100, i));
   const t = R.wpick([1, 2, 3, 4, 5].filter(x => x >= minTier), x => w[x - 1]);
   const pool = SOULS.filter(s => s.tier === t && !CLANS.some(c => c.soul === s.id) && s.id !== 'luosanpao' && s.id !== 'jiubao' && s.id !== 'bluesilverking');
   let soul = R.pick(pool);
-  if (soul.mut && R.chance(0.02)) soul = SOUL_BY_ID[soul.mut];
+  if (soul.mut && R.chance(0.02 + Math.max(0, luck - 70) / 800)) soul = SOUL_BY_ID[soul.mut];
   return soul.id;
 }
 function placeWeight(p, tier) {
@@ -124,14 +126,15 @@ function newLife() {
   if (famT.id >= 5 && R.chance(0.8)) clan = R.pick(CLANS.filter(c => c.tier === famT.id));
   const name = genName(gender, clan ? clan.sur : null);
   const place = clan ? PLACES.find(p => p.id === clan.place) : R.wpick(PLACES, p => placeWeight(p, famT.id));
-  const innate = rollInnate(famT.id);
-  let soul;
-  if (clan && R.chance(0.65)) { soul = clan.soul; if (clan.mut && R.chance(0.04)) soul = clan.mut; }
-  else soul = rollSoul(famT.id);
-  const souls = [soul];
-  if (R.chance(0.004 + famT.id * 0.0008)) { let second = rollSoul(famT.id, 3); if (second === soul) second = 'haotian'; souls.push(second); }
-
   const bg = R.pick(BACKGROUNDS.filter(b => b.tier === famT.id));
+  const luck = clamp(R.i(1, 95) + (famT.bias.luck || 0) + (bg.mods.luck || 0), 1, 100);
+  const innate = rollInnate(famT.id, luck);
+  let soul;
+  if (clan && R.chance(0.65)) { soul = clan.soul; if (clan.mut && R.chance(0.04 + luck / 2000)) soul = clan.mut; }
+  else soul = rollSoul(famT.id, 1, luck);
+  const souls = [soul];
+  if (R.chance(0.004 + famT.id * 0.0008 + Math.max(0, luck - 80) / 4000)) { let second = rollSoul(famT.id, 3, luck); if (second === soul) second = 'haotian'; souls.push(second); }
+
   const st = k => clamp(R.i(4, 13) + (famT.bias[k] || 0) + (bg.mods[k] || 0), 1, 40);
   const s = {
     v: 4, id: Date.now().toString(36), birthYear: R.i(-14, 8),
@@ -141,7 +144,7 @@ function newLife() {
     awakened: false, innate, souls,
     level: 0, rings: [], bones: [], hp: 100,
     str: st('str'), agi: st('agi'), spi: st('spi'), wis: st('wis'),
-    luck: clamp(R.i(1, 95) + (famT.bias.luck || 0) + (bg.mods.luck || 0), 1, 100), fame: bg.mods.fame || 0, mood: 70 + (bg.mods.mood || 0), money: Math.max(0, famT.start + (bg.money || 0)),
+    luck, fame: bg.mods.fame || 0, mood: 70 + (bg.mods.mood || 0), money: Math.max(0, famT.start + (bg.money || 0)),
     bg: bg.id,
     disabilities: [], path: 'child', sect: null,
     mentor: null, partner: null, children: 0, friend: null,
@@ -213,9 +216,21 @@ const WORLD_NEWS = [
 
 // ---------- บันทึก ----------
 function pushYear(s) { s.log.push({ age: s.age, lines: [] }); }
-function log(s, t, c = '') {
-  s.log[s.log.length - 1].lines.push({ t, c });
-  if (s.feed) s.feed.push({ t, c, age: s.age });
+function log(s, t, c = '', d) {
+  const line = d ? { t, c, d } : { t, c };
+  s.log[s.log.length - 1].lines.push(line);
+  if (s.feed) s.feed.push({ ...line, age: s.age });
+}
+// เปิด/ปิด "ช่วง" เพื่อสรุปว่าสาเหตุนี้ทำให้ค่าอะไรเปลี่ยน แล้วบันทึกเป็นแถวชิปต่อท้ายสาเหตุนั้น
+const segStart = s => s._delta ? s._delta.length : 0;
+function segEnd(s, i0, title) {
+  if (!s._delta) return;
+  const agg = {};
+  for (const [k, n] of s._delta.slice(i0)) agg[k] = (agg[k] || 0) + n;
+  const parts = Object.entries(agg).filter(([, n]) => Math.round(n * 10) !== 0).map(([k, n]) => [k, Math.round(n * 10) / 10]);
+  if (!parts.length) return;
+  if (title) log(s, title, 'passive');
+  log(s, '', 'chips', parts);
 }
 
 // ---------- เปลี่ยนค่า ----------
@@ -268,6 +283,7 @@ const bgOf = s => BACKGROUNDS.find(b => b.id === s.bg) || { th: '', desc: '', mo
 function changeTier(s, d, why) {
   const t = clamp(s.familyTier + d, 1, 6);
   if (t === s.familyTier) return;
+  if (d < 0 && s.familyTier >= 4) s.flags.fallen = true;
   s.familyTier = t;
   log(s, `${d > 0 ? '📈' : '📉'} ฐานะของครอบครัวเปลี่ยนเป็น <b>${FAMILY_TIERS[t - 1].th}</b> — ${why}`, d > 0 ? 'gold' : 'bad');
 }
@@ -300,6 +316,10 @@ function cultUnit(s) {
   if (s.arts && s.arts.xuantian) mult *= 1.08;
   if (s.flags.ningBuff) mult *= 1.06;
   mult *= s.mentor ? 1.15 : 1;
+  // แรงผลักดันจากจุดเปลี่ยนของชีวิต: คู่ปรับ ปณิธาน ตำราลับ
+  if (s.flags.rivalry && !s.flags.rivalDone) mult *= 1.05;
+  if (s.flags.mottoPower) mult *= 1.04;
+  if (s.flags.secretManual) mult *= 1.05;
   mult *= s.souls.length > 1 ? 1.12 : 1;
   mult *= 1 + disMod(s, 'cult');
   mult *= s.mood < 25 ? 0.8 : 1;
@@ -333,13 +353,13 @@ function cultivate(s, factor = 1, isAct = false) {
 
 // ---------- ล่าวงแหวนวิญญาณ ----------
 function ringLimit(s, idx) {
-  let f = 0.8 + s.str / 100 * 0.5 + (s.flags.herb ? 0.5 : 0) + (s.flags.iceFire ? 0.6 : 0) + (s.souls.length > 1 ? 0.2 : 0) + s.bones.length * 0.1;
+  let f = 0.8 + s.str / 100 * 0.5 + (s.flags.huntReady ? 0.15 : 0) + (s.flags.herb ? 0.5 : 0) + (s.flags.iceFire ? 0.6 : 0) + (s.souls.length > 1 ? 0.2 : 0) + s.bones.length * 0.1;
   return Math.round(RING_LIMITS[idx] * f);
 }
 const ESCORT_COST = [0, 3, 20, 120, 800];
 function huntCalc(s, years, compat) {
   const t = ringTierOf(years), limit = ringLimit(s, s.rings.length);
-  const free = s.familyTier >= 5 || ['clan', 'sect', 'shrek', 'wuhunac', 'royal', 'wuhun', 'elder'].includes(s.path);
+  const free = s.familyTier >= 5 || s.flags.huntReady || ['clan', 'sect', 'shrek', 'wuhunac', 'royal', 'wuhun', 'elder'].includes(s.path);
   const cost = free ? 0 : ESCORT_COST[t];
   const escort = free || s.money >= cost;
   const huntRisk = [0.01, 0.04, 0.12, 0.28, 0.55][t] * (escort ? 0.3 : 1) * clamp(1 + ((t + 1) * 12 - lvl(s)) / 40, 0.5, 2) * (1 - s.luck / 400) * (compat ? 0.85 : 1);
@@ -412,6 +432,15 @@ function giveBone(s, years) {
 function soulLabel(id) { const x = SOUL_BY_ID[id]; return `${x.th} (${x.zh})`; }
 function awaken(s) {
   s.awakened = true;
+  if (s.luck >= 80 && SOUL_BY_ID[s.souls[0]].tier <= 2 && R.chance((s.luck - 70) / 100)) {
+    const old = SOUL_BY_ID[s.souls[0]];
+    s.souls[0] = rollSoul(s.familyTier, 3, s.luck);
+    log(s, `🍀 <b>ปาฏิหาริย์แห่งโชคชะตา!</b> ลูกแก้วคริสตัลแตกร้าว แสงที่ควรเป็น${old.th}บิดเกลียวกลายเป็นสิ่งที่ยิ่งใหญ่กว่า`, 'gold');
+  }
+  if (s.innate === 0 && s.luck >= 88 && R.chance(0.3)) {
+    s.innate = R.i(1, 4);
+    log(s, '🍀 ลูกแก้วมืดสนิทอยู่นาน… แล้วกะพริบแสงริบหรี่ในวินาทีสุดท้าย — ดวงชะตาไม่ทิ้งคุณ', 'gold');
+  }
   const soul = soulOf(s);
   log(s, `✨ วิญญาณยุทธ์ของคุณคือ <b>${soulLabel(soul.id)}</b> — ประเภท${TYPE_TH[soul.type]} · ระดับ${TIER_INFO[soul.tier].th}`, 'gold');
   if (s.souls.length > 1) log(s, `🌟🌟 ปาฏิหาริย์! คุณมี <b>วิญญาณยุทธ์คู่</b>: ${soulLabel(s.souls[1])}`, 'gold');
@@ -479,19 +508,27 @@ function yearTick(s) {
   tickPeers(s);
   if (!s.news && R.chance(0.4)) s.news = R.pick(WORLD_NEWS);
   const P = pathOf(s), fam = familyOf(s);
-  // รายได้
-  let inc = s.bg === 'orphan' ? 0 : fam.income * (s.age < 18 ? 0.25 : 0.05);
-  if (typeof P.inc === 'number') inc += P.inc;
-  else if (typeof P.inc === 'string') inc += 5 + lvl(s) * parseFloat(P.inc.slice(3));
-  add(s, 'money', Math.round(inc), true);
-  // การเติบโตตามเส้นทาง (ความรู้ ร่างกาย ฯลฯ)
+  // รายได้ — บอกที่มาทุกครั้ง
+  const famInc = s.bg === 'orphan' ? 0 : Math.round(fam.income * (s.age < 18 ? 0.25 : 0.05));
+  const workInc = Math.round((typeof P.inc === 'number' ? P.inc : typeof P.inc === 'string' ? 5 + lvl(s) * parseFloat(P.inc.slice(3)) : 0) * (s.flags.mottoWealth ? 1.25 : 1));
+  if (s.age < 6) add(s, 'money', famInc + workInc, true);
+  else if (famInc || workInc) {
+    const i0 = segStart(s);
+    add(s, 'money', famInc + workInc);
+    segEnd(s, i0, `💰 รายได้ประจำปี${famInc ? ` · ครอบครัวส่งเสีย ${famInc}` : ''}${workInc ? ` · ${workInc > 0 ? 'จากงาน' : 'ค่าใช้จ่าย'}${P.th}` : ''}`);
+  }
+  // การเติบโตตามเส้นทาง (ความรู้ ร่างกาย ฯลฯ) และการบำเพ็ญประจำวัน
+  const i1 = segStart(s);
   for (const k of ['str', 'agi', 'spi', 'wis', 'luck', 'mood', 'fame']) {
     const v = P[k]; if (!v) continue;
     const n = Math.trunc(v) + (R.chance(Math.abs(v % 1)) ? Math.sign(v) : 0);
     if (n) add(s, k, n);
   }
   cultivate(s, 0.6);
+  segEnd(s, i1, `🗓️ หนึ่งปีในฐานะ${P.th}${isCultivator(s) && P.cult ? ' — บำเพ็ญทุกเช้าค่ำ' : ''}`);
+  const i2 = segStart(s);
   routeTick(s);
+  segEnd(s, i2, '🏪 รายได้จากกิจการและอำนาจของคุณ');
   s.hp = Math.min(maxHp(s), s.hp + Math.round(6 + fam.care * 12 + (s.flags.oscar ? 15 : 0)));
   mortality(s);
 }
@@ -552,6 +589,7 @@ function endYear(s) {
   const ce = Object.values(EVENTS).filter(ev => ev.canon && !s.seen[ev.id] && wy >= ev.wy[0] && wy <= ev.wy[1] && (!ev.age || (s.age >= ev.age[0] && s.age <= ev.age[1])) && (!ev.cond || ev.cond(s)));
   if (ce.length) s.queue.push(R.pick(ce).id);
   routeYear(s);
+  questYear(s);
   const pool = storyPool(s);
   if (pool.length && R.chance(s.age < 6 ? 0.7 : 0.75)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
   if (pool.length > 1 && s.tend.adv > 3 && R.chance(0.3)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
@@ -564,7 +602,8 @@ function choose(s, k) {
   const o = p.opts.find(x => x.k === k);
   if (!o || o.lock) return;
   s.pending = null;
-  log(s, `▸ คุณเลือก: <b>${o.t}</b>`, 'pick');
+  log(s, `▸ คุณเลือก: <b>${o.t}</b>`, 'pick', p.title);
+  const seg0 = segStart(s);
   s.lastQ = p.title;
   if (!['shop', 'weaponShop'].includes(p.eid)) (s.picks = s.picks || []).push({ age: s.age, eid: p.eid, q: p.title, a: o.t });
   routeHook(s, p.eid, k);
@@ -580,6 +619,7 @@ function choose(s, k) {
   if (fn) fn(s, p.ctx, won);
   const yrs = o.years || p.years;
   if (yrs > 1) { s.skip = (s.skip || 0) + yrs - 1; s.ap = 0; log(s, `⏳ ใช้เวลา ${yrs} ปี`, 'muted'); }
+  if (s.alive) { questHook(s, 'event', p.eid); segEnd(s, seg0); }
   presentNext(s);
 }
 // ผลลัพธ์มาตรฐาน: { fx, say, path, flag, hurt:[a,b], dis(โอกาสพิการ), die(โอกาสตาย), cause }
