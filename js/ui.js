@@ -182,7 +182,7 @@ function renderLeft() {
       <span class="k">บุตร</span><span class="v">${s.children || '—'}</span>
       ${s.disciple ? `<span class="k">ศิษย์</span><span class="v">${s.disciple}</span>` : ''}
     </div></section>`;
-  drawFigure($('portrait'), { ...heroSpec(s), rings: [], aura: null }, '#1d2a48', 2);
+  drawFigure($('portrait'), { ...heroSpec(s), rings: [], aura: null }, '#1c160d', 2);
 }
 
 function tendHtml(s) {

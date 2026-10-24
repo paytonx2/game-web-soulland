@@ -57,7 +57,7 @@ function combatPower(s) {
   const rp = s.rings.reduce((a, r) => a + ringPower(r.years), 0);
   let cp = lvl(s) * 12 + rp + str * 0.7 + agi * 0.6 + spi * 0.5;
   cp *= [0, 0.7, 0.85, 1, 1.15, 1.35][soul.tier] * ROLE_COMBAT[soul.role];
-  cp *= 1 + disMod(s, 'combat') + (s.souls.length > 1 ? 0.15 : 0) + (s.flags.killing ? 0.12 : 0) + (s.flags.hiddenWeapon ? 0.08 : 0) + artCombat(s) + weaponCombat(s) + (s.flags.fusion ? 0.1 : 0);
+  cp *= 1 + disMod(s, 'combat') + (s.souls.length > 1 ? 0.15 : 0) + (s.flags.killing ? 0.12 : 0) + (s.flags.hiddenWeapon ? 0.08 : 0) + artCombat(s) + weaponCombat(s) + (s.flags.fusion ? 0.1 : 0) + (s.flags.starBlade ? 0.1 : 0);
   return cp * (0.6 + 0.4 * s.hp / maxHp(s));
 }
 function artCombat(s) { return Object.keys(s.arts || {}).reduce((a, k) => a + (TANG_ARTS[k].combat || 0), 0); }
@@ -236,6 +236,8 @@ function add(s, key, n, quiet = false) {
 }
 function addSoul(s, n) {
   if (!isCultivator(s)) return;
+  // รางวัลพลังวิญญาณจากเหตุการณ์ ยิ่งระดับสูงยิ่งได้น้อยลง
+  if (n > 0) n *= 1 / (1 + Math.max(0, s.level - 20) / 20);
   const b = lvl(s);
   s.level = clamp(s.level + n, 0, ringCap(s));
   if (s._delta && lvl(s) !== b) s._delta.push(['soul', lvl(s) - b]);
@@ -287,26 +289,40 @@ const statOdds = (s, key, base = 0.25, div = 130) => pct(clamp(base + effStat(s,
 // ---------- บำเพ็ญ ----------
 function ringCap(s) { return Math.min(99, (s.rings.length + 1) * 10); }
 function isBottleneck(s) { return isCultivator(s) && s.level >= ringCap(s) && s.rings.length < 9 && lvl(s) < 99; }
-function cultivate(s, factor = 1) {
-  if (!isCultivator(s)) return;
-  const P = pathOf(s);
-  if (!P.cult && factor === 0.6) return;
-  const cap = ringCap(s);
-  if (s.level >= cap) return;
-  const fam = familyOf(s), soul = soulOf(s);
-  const base = s.innate * 0.42 + (s.innate === 10 ? 0.6 : 0);
-  let mult = TIER_INFO[soul.tier].mult * fam.train * (P.cult || 0.8) * (0.7 + s.wis / 100 * 0.6) * s.boost * factor;
-  if (s.arts && s.arts.xuantian) mult *= 1.1;
-  if (s.flags.ningBuff) mult *= 1.08;
-  mult *= s.mentor ? 1.2 : 1;
-  mult *= s.souls.length > 1 ? 1.15 : 1;
+// หน่วยการเติบโตต่อ "การบำเพ็ญเต็มปี" (ไม่สุ่ม) — ใช้ทั้งคำนวณจริงและแสดงตัวอย่าง
+// ยิ่งระดับสูงยิ่งช้า: อัจฉริยะพลังเต็มขั้น ~ระดับ 30 ตอน 12 ปี, ~50 ตอน 20 ปี; ระดับ 90+ ต้องใช้เวลาหลายสิบปี
+function cultUnit(s) {
+  const soul = soulOf(s);
+  if (!soul || !isCultivator(s)) return 0;
+  const P = pathOf(s), fam = familyOf(s);
+  const base = s.innate * 0.3 + (s.innate === 10 ? 0.5 : 0);
+  let mult = TIER_INFO[soul.tier].mult * fam.train * (P.cult || 0.8) * (0.75 + s.wis / 100 * 0.45);
+  if (s.arts && s.arts.xuantian) mult *= 1.08;
+  if (s.flags.ningBuff) mult *= 1.06;
+  mult *= s.mentor ? 1.15 : 1;
+  mult *= s.souls.length > 1 ? 1.12 : 1;
   mult *= 1 + disMod(s, 'cult');
   mult *= s.mood < 25 ? 0.8 : 1;
-  if (s.money > 500) mult *= 1.05;
-  const dim = 1 / (1 + Math.max(0, s.level - 20) / 11);
+  mult = Math.min(mult, 2.1);
+  const L = s.level;
+  let dim = 1 / (1 + Math.max(0, L - 15) / 12);
+  if (L >= 60) dim *= 0.9;
+  if (L >= 80) dim *= 0.8;
+  if (L >= 90) dim *= 0.75;
   const ageF = s.age > 40 ? Math.max(0.3, 1 - (s.age - 40) / 80) : 1;
+  return base * mult * dim * ageF * s.boost;
+}
+// บำเพ็ญหลายครั้งในปีเดียว ผลจะลดลงเรื่อย ๆ
+const yearCultFactor = s => [1, 0.6, 0.4, 0.3, 0.2][Math.min(s.yearCult || 0, 4)];
+function cultivate(s, factor = 1, isAct = false) {
+  if (!isCultivator(s)) return;
+  if (!pathOf(s).cult && factor === 0.6) return;
+  const cap = ringCap(s);
+  if (s.level >= cap) return;
+  let g = cultUnit(s) * factor * R.f(0.8, 1.2);
+  if (isAct) { g *= yearCultFactor(s); s.yearCult = (s.yearCult || 0) + 1; }
   const before = lvl(s);
-  s.level = Math.min(cap, s.level + base * mult * dim * ageF * R.f(0.75, 1.25));
+  s.level = Math.min(cap, s.level + g);
   const after = lvl(s);
   if (after > before) {
     if (s._delta) s._delta.push(['soul', after - before]);
@@ -377,7 +393,7 @@ function resolveHunt(s, years, beast, compat) {
   s.rings.push(ring);
   log(s, `💍 ได้รับ <b>วงแหวนวิญญาณที่ ${idx + 1}</b> สี${RING_TIERS[ringTierOf(years)].th} จาก${beast} (${fmt(years)} ปี) — ทักษะ「<b>${ring.skill}</b>」`, 'gold');
   if (compat) { log(s, '✨ ธาตุของสัตว์วิญญาณเข้ากับวิญญาณยุทธ์ ทักษะทรงพลังเป็นพิเศษ', 'good'); ring.compat = true; }
-  const bonus = 1 + (years >= 1000 ? 1 : 0) + (years >= 10000 ? 2 : 0) + (years >= 100000 ? 4 : 0) + (h.ratio > 1 ? 1 : 0) + (compat ? 1 : 0);
+  const bonus = (1 + (years >= 1000 ? 1 : 0) + (years >= 10000 ? 1 : 0) + (years >= 100000 ? 3 : 0) + (h.ratio > 1 ? 1 : 0) + (compat ? 0.5 : 0)) * (idx >= 6 ? 0.6 : 1);
   addSoul(s, bonus);
   add(s, role === 'agile' ? 'agi' : role === 'power' || role === 'defense' ? 'str' : 'spi', R.i(2, 4) + h.t + (compat ? 2 : 0));
   if (h.t >= 2) add(s, 'fame', h.t * 2);
@@ -475,6 +491,7 @@ function yearTick(s) {
     if (n) add(s, k, n);
   }
   cultivate(s, 0.6);
+  routeTick(s);
   s.hp = Math.min(maxHp(s), s.hp + Math.round(6 + fam.care * 12 + (s.flags.oscar ? 15 : 0)));
   mortality(s);
 }
@@ -513,7 +530,7 @@ function presentNext(s) {
   }
 }
 function storyPool(s) {
-  return Object.values(EVENTS).filter(ev => !ev.forced && !ev.canon && ev.age && s.age >= ev.age[0] && s.age <= ev.age[1] && (!ev.once || !s.seen[ev.id]) && (!ev.cond || ev.cond(s)));
+  return Object.values(EVENTS).filter(ev => !ev.forced && !ev.canon && !ev.route && ev.age && s.age >= ev.age[0] && s.age <= ev.age[1] && (!ev.once || !s.seen[ev.id]) && (!ev.cond || ev.cond(s)));
 }
 function canonNews(s) {
   const t = CANON_TIMELINE.filter(c => c.wy === worldYear(s));
@@ -529,13 +546,14 @@ function endYear(s) {
   for (let i = 0; i < n && s.alive; i++) yearTick(s);
   s.boost = 1;
   if (!s.alive) return;
-  s.ap = apMax(s); s.done = {}; s.yearHunt = false;
+  s.ap = apMax(s); s.done = {}; s.yearHunt = false; s.yearCult = 0;
   const cn = canonNews(s); if (cn) s.news = cn;
   const wy = worldYear(s);
   const ce = Object.values(EVENTS).filter(ev => ev.canon && !s.seen[ev.id] && wy >= ev.wy[0] && wy <= ev.wy[1] && (!ev.age || (s.age >= ev.age[0] && s.age <= ev.age[1])) && (!ev.cond || ev.cond(s)));
   if (ce.length) s.queue.push(R.pick(ce).id);
+  routeYear(s);
   const pool = storyPool(s);
-  if (pool.length && R.chance(s.age < 6 ? 0.9 : 0.75)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
+  if (pool.length && R.chance(s.age < 6 ? 0.7 : 0.75)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
   if (pool.length > 1 && s.tend.adv > 3 && R.chance(0.3)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
   presentNext(s);
 }
@@ -549,6 +567,7 @@ function choose(s, k) {
   log(s, `▸ คุณเลือก: <b>${o.t}</b>`, 'pick');
   s.lastQ = p.title;
   if (!['shop', 'weaponShop'].includes(p.eid)) (s.picks = s.picks || []).push({ age: s.age, eid: p.eid, q: p.title, a: o.t });
+  routeHook(s, p.eid, k);
   if (o.fxa) apply(s, o.fxa);
   if (o.path) setPath(s, o.path);
   if (o.flag) s.flags[o.flag] = true;

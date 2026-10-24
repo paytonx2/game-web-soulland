@@ -82,8 +82,8 @@ const HIDDEN_WEAPONS = [
 const SHOP_ITEMS = [
   { id:'sausage', th:'ไส้กรอกฟื้นฟู (ของออสการ์)', price:8, desc:'ฟื้นฟูสุขภาพ 40', fx:[['hp', 40]], need: s => worldYear(s) >= 13 },
   { id:'bun', th:'ซาลาเปาร้อน ๆ', price:1, desc:'อิ่มท้อง อารมณ์ดี', fx:[['mood', 4], ['hp', 5]] },
-  { id:'pill', th:'ยาบำรุงวิญญาณ', price:25, desc:'พลังวิญญาณ +1 ระดับ', fx:[['soul', 1]], need: s => isCultivator(s) },
-  { id:'qibaopill', th:'ยาเจ็ดสมบัติ (สำนักหอแก้ว)', price:120, desc:'พลังวิญญาณ +3 ระดับ', fx:[['soul', 3]], need: s => isCultivator(s) && lvl(s) >= 20 },
+  { id:'pill', th:'ยาบำรุงวิญญาณ', price:25, desc:'บำเพ็ญเพิ่มทันที (ปีละ 1 เม็ด)', cult:0.5, fx:[], need: s => isCultivator(s) },
+  { id:'qibaopill', th:'ยาเจ็ดสมบัติ (สำนักหอแก้ว)', price:120, desc:'บำเพ็ญเพิ่มมาก (นับรวมโควตายาปีละ 1 เม็ด)', cult:1.2, fx:[], need: s => isCultivator(s) && lvl(s) >= 20 },
   { id:'mindtea', th:'ชาพลังจิต', price:15, desc:'พลังจิต +3', fx:[['spi', 3]] },
   { id:'tonic', th:'ยาโด๊ปกล้ามเนื้อ', price:15, desc:'พละกำลัง +3', fx:[['str', 3]] },
   { id:'book', th:'ตำราทฤษฎีวิญญาณยุทธ์', price:12, desc:'ปัญญา +4', fx:[['wis', 4]] },
