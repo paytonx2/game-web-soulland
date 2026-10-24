@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เกิดในโลกวิญญาจารย์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chonburi&family=Mitr:wght@400;500;600&family=Sarabun:wght@400;600&family=Silkscreen&family=Noto+Serif+SC:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar" hidden>
+  <div class="tb-name" id="tbName"></div>
+  <div class="tb-stats" id="tbStats"></div>
+  <div class="tb-time">
+    <button class="tbtn" id="btnPlay" title="หยุด/เดินเวลาอัตโนมัติ (Space)">⏸</button>
+    <button class="tbtn spd" data-spd="1">1×</button>
+    <button class="tbtn spd" data-spd="2">2×</button>
+    <button class="tbtn spd" data-spd="4">4×</button>
+  </div>
+  <div class="tb-menu">
+    <button class="tbtn" id="btnLog" title="บันทึกชีวิต">📜 บันทึก</button>
+    <button class="tbtn" id="btnGraves" title="หอบรรพชน">🪦</button>
+    <button class="tbtn" id="btnHelp" title="วิธีเล่น">❓</button>
+    <button class="tbtn red" id="btnNew">เกิดใหม่</button>
+  </div>
+</header>
+
+<main class="game" id="game" hidden>
+  <!-- ซ้าย: ข้อมูลตัวละครทั้งหมด -->
+  <aside class="col left" id="left"></aside>
+
+  <!-- กลาง: ฉาก + เส้นเวลา + ตัวเลือก -->
+  <section class="col center">
+    <div class="scene-frame">
+      <canvas id="scene" width="320" height="180"></canvas>
+      <div class="scene-fx" id="sceneFx"></div>
+      <div class="scene-cap" id="sceneCap"></div>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    <!-- ทุกอย่างที่ต้องกดเลือก: ทางแยกของชีวิต / ประลอง / กิจกรรมประจำปี -->
+    <div class="box event" id="eventBox"></div>
+  </section>
+
+  <!-- ขวา: เรื่องราว -->
+  <section class="col right">
+    <div class="box story" id="storyBox"></div>
+  </section>
+</main>
+
+<div class="overlay" id="overlay" hidden><div class="ov-card" id="ovCard"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/lore.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/events.js"></script>
+<script src="js/canon.js"></script>
+<script src="js/class.js"></script>
+<script src="js/activities.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/story.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
