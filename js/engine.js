@@ -323,6 +323,7 @@ function cultUnit(s) {
   mult *= s.souls.length > 1 ? 1.12 : 1;
   mult *= 1 + disMod(s, 'cult');
   mult *= s.mood < 25 ? 0.8 : 1;
+  mult *= 1 + (soul.over || 0) * 0.12; // กลายพันธุ์เกินขั้นตำนาน หรือต่ำกว่าขั้นด้อย
   mult = Math.min(mult, 2.1);
   const L = s.level;
   let dim = 1 / (1 + Math.max(0, L - 15) / 12);
@@ -407,6 +408,7 @@ function resolveHunt(s, years, beast, compat) {
     }
     log(s, 'คุณกัดฟันทนความเจ็บปวดราวร่างจะแหลก และฝ่าฟันมาได้! ร่างกายแข็งแกร่งขึ้นมาก', 'gold');
     add(s, 'str', R.i(3, 7)); add(s, 'spi', R.i(3, 7)); add(s, 'fame', 3);
+    if (canMutate(s) && R.chance(0.12)) mutateSoul(s, rollMutation(s, { good: 10 }), 'พลังวงแหวนที่เกินขีดจำกัดบีบให้วิญญาณยุทธ์ต้องเปลี่ยนตัวเองเพื่อรองรับ');
   }
   const role = soulOf(s).role;
   const ring = { years, skill: SKILL_NAMES[role][idx], beast };

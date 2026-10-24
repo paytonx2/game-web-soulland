@@ -24,7 +24,7 @@ function combatant(o) {
   return {
     name: o.name, level: o.level, soul: o.soul, rings: o.rings,
     str: o.str, agi: o.agi, spi: o.spi, luck: o.luck ?? 30,
-    mult: [0, 0.7, 0.85, 1, 1.15, 1.35][soul.tier] * (0.5 + ROLE_COMBAT[soul.role] * 0.5) * (o.mult ?? 1),
+    mult: [0, 0.7, 0.85, 1, 1.15, 1.35][soul.tier] * (1 + (soul.over || 0) * 0.12) * (0.5 + ROLE_COMBAT[soul.role] * 0.5) * (o.mult ?? 1),
     hp: Math.max(1, hpMax), hpMax: Math.round(80 + o.level * 6 + o.str * 1.2), en: enMax, enMax,
     shield: 0, buff: 0, stun: false, defending: false,
   };

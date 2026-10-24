@@ -70,6 +70,7 @@ function run(fn) {
   save(); render();
   waited = 0;
   // มีเรื่องให้ตัดสินใจใหม่ แต่กล่องตัวเลือกอยู่นอกจอ → เลื่อนให้เห็น
+  if ((S.pending || S.battle) && isMobile() && mtab !== 'play') setTab('play');
   if ((S.pending || S.battle) && !$('game').hidden) { const r = $('eventBox').getBoundingClientRect(); if (r.top > innerHeight - 120 || r.bottom < 80) $('eventBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   if (!S.alive) { addGrave(S); setTimeout(showTomb, 1600); }
 }
@@ -138,6 +139,7 @@ function renderLeft() {
   if (!s.awakened) soul = `<div class="note">❔ ยังไม่ถูกปลุก — พิธีปลุกเมื่ออายุ 6 ปี${clan ? `<br>สายเลือดตระกูล: ${SOUL_BY_ID[clan.soul].th}` : ''}</div>`;
   else {
     soul = s.souls.map((id, i) => { const x = SOUL_BY_ID[id], T = TIER_INFO[x.tier]; return `<div class="sn ${T.cls}">${i ? '🌟 ' : ''}${x.th} <span class="zh">${x.zh}</span></div><div class="note">${TYPE_TH[x.type]} · ${T.th} · ${ROLE_TH[x.role]}</div>`; }).join('');
+    if ((s.mutations || []).length) soul += `<div class="mutlog">${s.mutations.map(m => `<div class="mu ${m.kind}">🧬 อายุ ${m.age}: ${MUT_KIND_TH[m.kind]} — ${m.from} → <b>${m.to}</b></div>`).join('')}</div>`;
     soul += `<div class="kv"><span class="k">พลังแต่กำเนิด</span><span class="v">${s.innate ? `ระดับ ${s.innate}${s.innate === 10 ? ' 🔥' : ''}` : 'ไม่มี'}</span><span class="k">ขั้นพลัง</span><span class="v">${rank.th} <span class="zh">${rank.zh}</span></span></div>`;
     if (isCultivator(s)) soul += `<div class="rings">${Array.from({ length: 9 }, (_, i) => { const r = s.rings[i]; if (!r) return `<div class="rr e"><span class="orb empty">${i + 1}</span><small>ระดับ ${(i + 1) * 10}</small></div>`; const rt = RING_TIERS[ringTierOf(r.years)]; return `<div class="rr" title="${r.beast || ''}"><span class="orb" style="--rc:${rt.color}">${i + 1}</span><span><b>${fmt(r.years)} ปี</b> ${r.compat ? '✨' : ''}<small>「${r.skill}」${r.beast ? ' · ' + r.beast : ''}</small></span></div>`; }).join('')}</div>`;
   }
@@ -273,6 +275,11 @@ function renderStory() {
     ${questBoxHtml(s)}
     <details class="peersbox"><summary>👥 คนที่เกิดปีเดียวกับคุณ (${s.peers.filter(p => p.alive).length}/${s.peers.length} ยังมีชีวิต)</summary><div class="peers">${s.peers.map(peer).join('')}</div></details>`;
   const en = $('entries'); if (en) en.scrollTop = en.scrollHeight;
+  const cards = $('storyBox').querySelectorAll('#entries > .entry');
+  $('mLast').innerHTML = cards.length && s.feed && s.feed.length ? cards[cards.length - 1].outerHTML + '<button class="mmore" data-goto="story">📖 อ่านเรื่องราวทั้งปี</button>' : '';
+  const n = (s.feed || []).length;
+  if (n > storyLen && mtab !== 'story') $('mtStory').classList.add('dot');
+  storyLen = n;
 }
 
 // ---------- กล่องทางแยกของชีวิต ----------
@@ -632,7 +639,17 @@ function showHelp() {
 }
 
 // ---------- เริ่มเกม ----------
-function startGame() { $('topbar').hidden = false; $('game').hidden = false; render(); }
+function startGame() { $('topbar').hidden = false; $('game').hidden = false; $('mtabs').hidden = false; setTab('play'); render(); }
+// ---------- มือถือ: แท็บ เล่น / เรื่องราว / ตัวละคร ----------
+let mtab = 'play', storyLen = 0;
+const isMobile = () => matchMedia('(max-width: 860px)').matches;
+function setTab(t) {
+  mtab = t; document.body.dataset.mtab = t;
+  document.querySelectorAll('.mtab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  if (t === 'story') { $('mtStory').classList.remove('dot'); const en = $('entries'); if (en) en.scrollTop = en.scrollHeight; }
+  if (isMobile()) window.scrollTo({ top: 0 });
+}
+$('mtabs').onclick = e => { const b = e.target.closest('.mtab'); if (b) setTab(b.dataset.t); };
 
 $('btnLog').onclick = showLog;
 $('btnPlay').onclick = () => { playing = !playing; renderTime(); };
@@ -662,3 +679,5 @@ document.addEventListener('keydown', e => {
 });
 
 showLanding();
+
+$('mLast').onclick = e => { if (e.target.closest('[data-goto]')) setTab('story'); };

@@ -241,7 +241,9 @@ const SOULS = [
   { id:'goldcrow', th:'อีกาทองคำเพลิงแท้', zh:'金乌真火', type:'beast', tier:5, role:'power' },
   { id:'jiubao', th:'หอแก้วเก้าสมบัติ', zh:'九宝琉璃塔', type:'tool', tier:5, role:'support' },
 ];
-const SOUL_BY_ID = Object.fromEntries(SOULS.map(s => [s.id, s]));
+const SOUL_BASE = Object.fromEntries(SOULS.map(s => [s.id, s]));
+// วิญญาณยุทธ์กลายพันธุ์ (รหัสขึ้นต้น m:) ถูกสร้างตอนเรียกใช้ครั้งแรก — ดู mutate.js
+const SOUL_BY_ID = new Proxy(SOUL_BASE, { get(t, k) { if (typeof k !== 'string' || k in t || !k.startsWith('m:')) return t[k]; const m = buildMutant(k); if (m) t[k] = m; return m; } });
 
 const TIER_INFO = {
   1: { th:'ด้อย', cls:'t1', mult:0.6 },

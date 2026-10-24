@@ -218,7 +218,7 @@ E('R_mer_richest', { route: true, age: [30, 110], cond: s => s.biz >= 3 && s.mon
 function godScore(s, g) {
   let sc = 0;
   const souls = s.souls.map(id => SOUL_BY_ID[id]);
-  if (souls.some(x => (g.souls || []).includes(x.id))) sc += 45;
+  if (souls.some(x => (g.souls || []).includes(x.base || x.id))) sc += 45;
   else if (souls.some(x => (g.roles || []).includes(x.role) || (g.types || []).includes(x.type))) sc += 15;
   sc += Math.min(40, (g.flags || []).filter(f => s.flags[f]).length * 20);
   sc += Math.min(30, rp(s, g.id) * 4);

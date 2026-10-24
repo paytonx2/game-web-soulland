@@ -2,7 +2,8 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050403">
 <title>เกิดในโลกวิญญาจารย์</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chonburi&family=Mitr:wght@400;500;600&family=Sarabun:wght@400;600&family=Silkscreen&family=Noto+Serif+SC:wght@600&display=swap" rel="stylesheet">
@@ -38,6 +39,7 @@
       <div class="scene-fx" id="sceneFx"></div>
       <div class="scene-cap" id="sceneCap"></div>
     </div>
+    <div class="mlast" id="mLast"></div>
     <!-- ทุกอย่างที่ต้องกดเลือก: ทางแยกของชีวิต / ประลอง / กิจกรรมประจำปี -->
     <div class="box event" id="eventBox"></div>
   </section>
@@ -47,6 +49,13 @@
     <div class="box story" id="storyBox"></div>
   </section>
 </main>
+
+<!-- มือถือ: สลับหน้าจอด้วยแถบล่าง -->
+<nav class="mtabs" id="mtabs" hidden>
+  <button class="mtab on" data-t="play"><span>⚔️</span>เล่น</button>
+  <button class="mtab" data-t="story" id="mtStory"><span>📖</span>เรื่องราว</button>
+  <button class="mtab" data-t="char"><span>🧑</span>ตัวละคร</button>
+</nav>
 
 <div class="overlay" id="overlay" hidden><div class="ov-card" id="ovCard"></div></div>
 
@@ -60,6 +69,7 @@
 <script src="js/route.js"></script>
 <script src="js/quest.js"></script>
 <script src="js/turns.js"></script>
+<script src="js/mutate.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/story.js"></script>
