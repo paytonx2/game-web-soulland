@@ -674,11 +674,11 @@ function toast(msg) {
   t.textContent = msg; t.className = 'show';
   clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 2600);
 }
-const cardFile = s => `ชีวิตของ${s.name}.png`;
-async function cardBlob(s) { const cv = await lifeCardCanvas(s); return new Promise(r => cv.toBlob(r, 'image/png')); }
-async function saveCard(s) {
-  const blob = await cardBlob(s);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cardFile(s);
+const cardFile = (s, size = 'story') => `ชีวิตของ${s.name}-${CARD_SIZES[size].ratio.replace(':', 'x')}.png`;
+async function cardBlob(s, size) { const cv = await lifeCardCanvas(s, size); return new Promise(r => cv.toBlob(r, 'image/png')); }
+async function saveCard(s, size = 'story') {
+  const blob = await cardBlob(s, size);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cardFile(s, size);
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast('💾 บันทึกการ์ดชีวิตเป็นรูปภาพแล้ว');
@@ -693,11 +693,11 @@ function saveText(s) {
   document.body.appendChild(a); a.click(); a.remove();
   toast('📄 บันทึกไฟล์ข้อความแล้ว');
 }
-async function shareStory(s) {
+async function shareStory(s, size = 'story') {
   const st = lifeStory(s);
   try {
     if (navigator.share) {
-      const file = new File([await cardBlob(s)], cardFile(s), { type: 'image/png' });
+      const file = new File([await cardBlob(s, size)], cardFile(s, size), { type: 'image/png' });
       const data = { title: `ชีวิตของ${s.name}`, text: st.plain };
       if (navigator.canShare && navigator.canShare({ files: [file] })) data.files = [file];
       await navigator.share(data);
@@ -707,16 +707,24 @@ async function shareStory(s) {
   copyStory(s);
 }
 
+let cardSize = (() => { try { return localStorage.getItem('douluo_card_size') || 'story'; } catch (e) { return 'story'; } })();
 function showTomb() {
-  const s = S, st = lifeStory(s);
+  const s = S, st = lifeStory(s), sd = lifeStandouts(s), fr = fameRank(s.fame);
+  if (!CARD_SIZES[cardSize]) cardSize = 'story';
   overlay(`<div class="tombwrap">
-    <div class="cardcol"><div class="cardprev916" id="cardPrev"><div class="cardload">กำลังวาดการ์ดชีวิต…</div></div></div>
+    <div class="cardcol"><div class="cardprev" id="cardPrev"><div class="cardload">กำลังวาดการ์ดชีวิต…</div></div></div>
     <div class="panel tomb-side">
-      <h2 class="title" style="font-size:32px">${s.ascended ? '🌟 ขึ้นสู่อาณาจักรเทพ' : 'ณ ที่นี้ ผู้กล้าได้หลับใหล'}</h2>
+      <h2 class="title tomb-h">${s.ascended ? '🌟 ขึ้นสู่อาณาจักรเทพ' : 'ณ ที่นี้ ผู้กล้าได้หลับใหล'}</h2>
       <div class="verdict">${st.verdict}</div>
       <div class="cause">${s.cause}</div>
+      <div class="famebox">🏅 ชื่อเสียง: <b>${fr.th}</b> · ${fr.sub}</div>
+      ${sd.length ? `<div class="standouts">${sd.map(it => `<div class="sd ${it.k}"><small>${it.lb}</small><b>${it.v}</b><span>${it.sub}</span></div>`).join('')}</div>` : ''}
+      <div class="sizepick" role="radiogroup" aria-label="ขนาดการ์ด">
+        <div class="sp-h">ขนาดการ์ด</div>
+        ${Object.entries(CARD_SIZES).map(([k, z]) => `<label class="sp ${k === cardSize ? 'on' : ''}"><input type="radio" name="cardsize" value="${k}" ${k === cardSize ? 'checked' : ''}><i></i><span><b>${z.th}</b><small>${z.ratio}</small></span></label>`).join('')}
+      </div>
       <div class="sharebar">
-        <button class="pbtn" id="bSave">💾 บันทึกการ์ด (9:16)</button>
+        <button class="pbtn" id="bSave">💾 บันทึกการ์ด</button>
         <button class="pbtn ghost" id="bShare">🔗 แชร์การ์ด</button>
         <button class="pbtn ghost" id="bCopy">📋 คัดลอกเรื่องราว</button>
         <button class="pbtn ghost" id="bTxt">📄 ไฟล์ข้อความ</button>
@@ -728,13 +736,28 @@ function showTomb() {
       <div class="btns" style="justify-content:center"><button class="pbtn ghost" id="ovClose">📜 บันทึกชีวิตทั้งหมด</button><button class="pbtn" id="ovNew">🔄 เกิดใหม่</button></div>
     </div>
   </div>`, true);
+  const preview = () => {
+    const box = $('cardPrev'); if (!box) return;
+    const z = CARD_SIZES[cardSize]; box.style.aspectRatio = `${z.w} / ${z.h}`; box.dataset.size = cardSize;
+    // จอคอม: ย่อการ์ดให้พอดีจอตามสัดส่วนจริง · มือถือ: เต็มความกว้าง
+    if (isMobile()) { box.style.width = ''; box.style.height = ''; }
+    else { const k = Math.min(Math.min(innerWidth * 0.55, 900) / z.w, Math.min(innerHeight * 0.86, 960) / z.h); box.style.width = Math.round(z.w * k) + 'px'; box.style.height = Math.round(z.h * k) + 'px'; }
+    box.innerHTML = '<div class="cardload">กำลังวาดการ์ดชีวิต…</div>';
+    const want = cardSize;
+    lifeCardCanvas(s, want).then(cv => { if (want !== cardSize || !$('cardPrev')) return; const img = new Image(); img.src = cv.toDataURL('image/png'); img.alt = `การ์ดชีวิตของ${s.name}`; box.innerHTML = ''; box.appendChild(img); });
+  };
+  document.querySelectorAll('input[name=cardsize]').forEach(r => r.onchange = () => {
+    cardSize = r.value; try { localStorage.setItem('douluo_card_size', cardSize); } catch (e) {}
+    document.querySelectorAll('.sp').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+    preview();
+  });
   $('ovClose').onclick = () => { closeOverlay(); showLog(); };
   $('ovNew').onclick = showBirth;
-  $('bSave').onclick = () => saveCard(s);
-  $('bShare').onclick = () => shareStory(s);
+  $('bSave').onclick = () => saveCard(s, cardSize);
+  $('bShare').onclick = () => shareStory(s, cardSize);
   $('bCopy').onclick = () => copyStory(s);
   $('bTxt').onclick = () => saveText(s);
-  lifeCardCanvas(s).then(cv => { const img = new Image(); img.src = cv.toDataURL('image/png'); img.alt = `การ์ดชีวิตของ${s.name}`; const box = $('cardPrev'); if (box) { box.innerHTML = ''; box.appendChild(img); } });
+  preview();
 }
 function showLog() {
   overlay(`<div class="panel tomb-card" style="width:min(760px,100%)"><h2 class="title" style="font-size:28px">📜 บันทึกชีวิต</h2>
