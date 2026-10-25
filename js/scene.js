@@ -262,7 +262,8 @@ function drawScene(canvas, spec) {
     if (A.rays) rays(A.rays.x, feet - 18, A.rays.color, A.rays.a, A.rays.t || 0);
     for (const g of A.ghosts || []) { X.save(); X.globalAlpha = g.a; person(g.x, feet, g.foe ? foe : hero); X.restore(); }
     person(110 + (A.hx || 0), feet, hero);
-    person(190 + (A.fx || 0), feet, foe);
+    if (spec.foe.beast) { sprite(BEAST, { b: '#3a3630', e: '#ff4a3a' }, 172 + (A.fx || 0), feet - 32, 4, true); glow(190 + (A.fx || 0), feet - 20, 10, '#ff3a2a', 0.3); }
+    else person(190 + (A.fx || 0), feet, foe);
     if (!spec.anim) for (let i = 0; i < 6; i++) px(150 + r() * 30, feet - 30 + r() * 20, 2, 2, '#fff2a0');
     battleFx(A, feet);
   } else if (spec.partner) {

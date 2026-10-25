@@ -38,12 +38,14 @@ E('huntMode', { forced: true, once: false, scene: 'hunt', make: s => {
     text: `คุณแกะรอยจนพบ<b>${c.th}</b> (วงแหวน${rt.th}) มันรับรู้ถึงการมาของคุณแล้ว จะลงมือเองหรือให้คนอื่นจัดการ?<br><span class="qhint">⚔️ ความยากถ้าล่าเอง: <b>${p.label}</b> · ต้องโจมตีเข้าเป้า ${p.rounds} ครั้ง · พลาดได้ ${p.lives - 1} ครั้ง${know ? ` · โอกาสซึมซับวงแหวนสำเร็จ ~${ab}%` : ''}</span>`,
     opts: [
       o('self', 'ลงมือล่าด้วยตัวเอง', 'มินิเกม: เข็มหมุนวนไม่หยุด กด Space / แตะ ตอนเข็มอยู่ในช่องทอง · สำเร็จแล้วได้ประสบการณ์และชื่อเสียงเพิ่ม · พลาดอาจบาดเจ็บหรือตาย', { fx: [['fame', 2], ['str', 1], ['agi', 1]] }),
+      o('fight', 'ประลองกับสัตว์วิญญาณตรง ๆ', `ต่อสู้แบบเทิร์นกับ${c.th} · สัตว์จะแกร่งตามอายุวงแหวน · ชนะโดยเลือดเหลือมาก = ซึมซับง่ายขึ้น`, { danger: huntFightDeath(s, c) * 0.4, fx: [['fame', 3], ['str', 1]] }),
       h.free ? o('escort', s.familyTier >= 5 || s.path === 'clan' ? 'ให้ผู้อาวุโสจัดการให้' : 'ให้อาจารย์และทีมคุ้มกันจัดการให้', 'ปลอดภัยกว่ามาก ไม่ต้องเล่น', { danger: h.huntRisk * 0.3 * 0.3 })
         : o('escort', `จ้างทีมคุ้มกันล่าให้ (${fmt(h.cost)} เหรียญ)`, 'ปลอดภัยกว่ามาก ไม่ต้องเล่น', { fx: [['money', -h.cost]], danger: h.huntRisk * 0.3 * 0.3, lock: h.escort ? null : `เงินไม่พอ (ต้องมี ${fmt(h.cost)})` }),
       o('back', 'ถอยออกมา เลือกเป้าหมายใหม่', '', { fx: [] }),
     ] };
 }, pick: {
   self: s => { const c = s.huntPick; s.hunt = { ...c, p: huntGameParams(s, c.years, c.compat) }; },
+  fight: s => { const c = s.huntPick, h = huntCalc(s, c.years, c.compat); startBattle(s, 'beast', { title: `🐾 ประลองกับ${c.th} ${fmt(c.years)} ปี`, eid: 'huntFight', foeName: c.th, beast: true, years: c.years, lvlOff: clamp(Math.round((h.ratio - 0.8) * 20) + h.t * 2, -8, 40), deathP: huntFightDeath(s, c) }); },
   escort: s => { const c = s.huntPick; s.huntPick = null; resolveHunt(s, c.years, c.th, c.compat, { escort: true }); },
   back: s => { s.huntPick = null; s.yearHunt = false; },
 } });
@@ -72,3 +74,18 @@ function finishHuntGame(s, res) {
   segEnd(s, seg0);
   presentNext(s);
 }
+
+// ---------- ประลองกับสัตว์วิญญาณเพื่อชิงวงแหวน ----------
+// ระดับของสัตว์ = ระดับผู้เล่น + ส่วนที่ล่าเกินขีดจำกัด · ยิ่งวงแหวนสีสูงยิ่งอันตราย
+function huntFightDeath(s, c) { const h = huntCalc(s, c.years, c.compat); return clamp([0.04, 0.08, 0.16, 0.3, 0.45][h.t] * (h.ratio > 1 ? 1 + (h.ratio - 1) * 0.6 : 1) * (1 - s.luck / 300), 0.02, 0.85); }
+E('huntFight', { forced: true, once: false, scene: 'hunt', make: s => ({ title: '', text: '', opts: [] }),
+  battleEnd(s, won) {
+    const c = s.huntPick; s.huntPick = null; s.yearHunt = true;
+    if (!c) return;
+    if (won) {
+      const b = s._lastBattle, left = b ? Math.max(0, b.me.hp) / b.me.hpMax : 0.5;
+      log(s, `⚔️ คุณโค่น${c.th}ได้ในการต่อสู้ตัวต่อตัว!${left > 0.6 ? ' (ชนะอย่างเด็ดขาด ร่างกายยังพร้อมซึมซับ)' : ''}`, 'good');
+      add(s, 'fame', 3); add(s, 'str', 1);
+      resolveHunt(s, c.years, c.th, c.compat, { self: true, perfect: left > 0.6 });
+    } else log(s, `${c.th}เหนือกว่าคุณ — ปีนี้ไม่ได้วงแหวน`, 'bad');
+  } });

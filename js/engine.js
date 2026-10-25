@@ -119,8 +119,8 @@ function placeWeight(p, tier) {
   return Math.max(0.15, 2 - Math.abs(p.wealth - want));
 }
 
-function newLife() {
-  const gender = R.chance(0.5) ? 'M' : 'F';
+function newLife(opt = {}) {
+  const gender = opt.gender === 'M' || opt.gender === 'F' ? opt.gender : R.chance(0.5) ? 'M' : 'F';
   const famT = R.wpick(FAMILY_TIERS, f => f.weight);
   let clan = null;
   if (famT.id >= 5 && R.chance(0.8)) clan = R.pick(CLANS.filter(c => c.tier === famT.id));
@@ -369,21 +369,31 @@ function huntCalc(s, years, compat) {
   const absorb = ratio > 1 ? Math.min(0.97, (ratio - 1) * 1.1) * (1 - s.luck / 300) * (compat ? 0.7 : 1) : 0;
   return { t, limit, cost, free, escort, huntRisk, ratio, absorb, death: clamp(huntRisk * 0.3 + absorb * 0.65, 0, 0.99) };
 }
+// ตัวเลือกสัตว์วิญญาณ: หลายระดับความเสี่ยง + วงแหวนข้ามขั้น · สัตว์ที่ธาตุเข้ากับวิญญาณยุทธ์มีโอกาสโผล่มากขึ้น
 function beastChoices(s) {
   const idx = s.rings.length, limit = ringLimit(s, idx), role = soulOf(s).role;
-  const used = new Set(), out = [];
-  for (const r of [0.35, 0.75, 1.15, 1.8]) {
+  const used = new Set(), out = [], fits = b => b.aff === 'any' || (AFF_MATCH[role] || []).includes(b.aff);
+  const okBig = b => !b.big || s.flags.redBeast || (b.min < 20000 && idx >= 3);
+  const targets = [0.3, 0.55, 0.8, 1.0, 1.25, 1.7];
+  const normalTier = ringTierOf(clamp(limit, 10, 190000));
+  for (const r of targets) {
     const target = clamp(limit * r, 10, 190000);
-    const pool = BEASTS.filter(b => b.min <= target * 1.4 && b.max >= target * 0.7 && !used.has(b.th) && (!b.big || s.flags.redBeast || (b.min < 20000 && idx >= 3)));
+    const pool = BEASTS.filter(b => b.min <= target * 1.4 && b.max >= target * 0.7 && !used.has(b.th) && okBig(b));
     if (!pool.length) continue;
-    const b = R.pick(pool); used.add(b.th);
-    out.push({ b, years: Math.round(clamp(target * R.f(0.85, 1.15), b.min, b.max)) });
+    const good = pool.filter(fits);
+    const b = good.length && R.chance(0.55 + s.luck / 400) ? R.pick(good) : R.pick(pool);
+    used.add(b.th);
+    out.push({ b, years: Math.round(clamp(target * R.f(0.88, 1.12), b.min, b.max)) });
   }
+  // วงแหวนข้ามขั้น: อายุสูงกว่าขีดจำกัดหลายเท่า สีวงแหวนสูงกว่าปกติ — ได้มหาศาลแต่เสี่ยงร่างระเบิด
+  const skipT = clamp(limit * R.f(2.6, 4.2), 10, 190000);
+  const skipPool = BEASTS.filter(b => b.max >= skipT * 0.7 && b.min <= skipT * 1.4 && !used.has(b.th) && okBig(b) && ringTierOf(skipT) > normalTier);
+  if (skipPool.length) { const b = R.pick(skipPool.filter(fits).length && R.chance(0.5) ? skipPool.filter(fits) : skipPool); used.add(b.th); out.push({ b, years: Math.round(clamp(skipT, b.min, b.max)), skip: true }); }
   if (s.flags.redBeast && !out.some(o => o.years >= 100000)) {
     const b = R.pick(BEASTS.filter(x => x.min >= 100000));
     out.push({ b, years: R.i(b.min, Math.min(b.max, b.min + 30000)) });
   }
-  return out.sort((a, b) => a.years - b.years).map(o => ({ ...o, compat: o.b.aff === 'any' || (AFF_MATCH[role] || []).includes(o.b.aff) }));
+  return out.sort((a, b) => a.years - b.years).map(o => ({ ...o, compat: fits(o.b) }));
 }
 function resolveHunt(s, years, beast, compat, opt = {}) {
   s.yearHunt = true;
@@ -415,8 +425,8 @@ function resolveHunt(s, years, beast, compat, opt = {}) {
     add(s, 'str', R.i(3, 7)); add(s, 'spi', R.i(3, 7)); add(s, 'fame', 3);
     if (canMutate(s) && R.chance(0.12)) mutateSoul(s, rollMutation(s, { good: 10 }), 'พลังวงแหวนที่เกินขีดจำกัดบีบให้วิญญาณยุทธ์ต้องเปลี่ยนตัวเองเพื่อรองรับ');
   }
-  const role = soulOf(s).role;
-  const ring = { years, skill: SKILL_NAMES[role][idx], beast };
+  const role = soulOf(s).role, bd = BEASTS.find(b => b.th === beast);
+  const ring = { years, skill: ringSkill(s, idx, bd, compat, years).name, beast };
   s.rings.push(ring);
   log(s, `💍 ได้รับ <b>วงแหวนวิญญาณที่ ${idx + 1}</b> สี${RING_TIERS[ringTierOf(years)].th} จาก${beast} (${fmt(years)} ปี) — ทักษะ「<b>${ring.skill}</b>」`, 'gold');
   if (compat) { log(s, '✨ ธาตุของสัตว์วิญญาณเข้ากับวิญญาณยุทธ์ ทักษะทรงพลังเป็นพิเศษ', 'good'); ring.compat = true; }
@@ -426,6 +436,13 @@ function resolveHunt(s, years, beast, compat, opt = {}) {
   if (h.t >= 2) add(s, 'fame', h.t * 2);
   const pBone = years >= 100000 ? 0.6 : years >= 10000 ? 0.15 : years >= 1000 ? 0.02 : 0;
   if (R.chance(pBone)) giveBone(s, years);
+}
+// ทักษะวงแหวน: ชื่อหลักตามสายวิญญาณยุทธ์ + ลักษณะของสัตว์ที่ล่า (ธาตุเข้ากัน = ทักษะบริสุทธิ์ แรงกว่า)
+const AFF_FLAVOR = { agile: 'วายุ', power: 'ทลาย', control: 'พันธนา', heal: 'ชีวา', defense: 'ปราการ', support: 'เสริมพลัง' };
+function ringSkill(s, idx, beast, compat, years) {
+  const role = soulOf(s).role, base = SKILL_NAMES[role][Math.min(idx, SKILL_NAMES[role].length - 1)];
+  const name = compat || !beast || !AFF_FLAVOR[beast.aff] ? base : `${base}·${AFF_FLAVOR[beast.aff]}`;
+  return { name, pow: Math.round((1.2 + ringPower(years) / 35) * (compat ? 1.15 : 1) * 100) };
 }
 function giveBone(s, years) {
   const owned = s.bones.map(b => b.part), free = BONE_PARTS.filter(p => !owned.includes(p.id));
@@ -484,7 +501,9 @@ E('hunt', {
     const choices = beastChoices(s);
     const opts = choices.map((c, i) => {
       const h = huntCalc(s, c.years, c.compat), rt = RING_TIERS[h.t];
-      return { k: 'b' + i, ring: rt.id, t: `${c.b.th} อายุ ${fmt(c.years)} ปี`, d: `วงแหวน${rt.th} · ${c.compat ? '✅ ธาตุเข้ากับวิญญาณยุทธ์' : '❎ ธาตุไม่เข้ากัน'} · ${h.free ? 'มีผู้คุ้มกันให้' : h.escort ? `จ้างคุ้มกัน ${fmt(h.cost)} เหรียญ` : `⚠️ ไม่มีเงินจ้างคุ้มกัน (${fmt(h.cost)})`}`,
+      const sk = ringSkill(s, idx, c.b, c.compat, c.years), sees = s.wis >= 45 || !!s.mentor, peek = s.wis >= 30;
+      const spoil = sees ? ` · ทักษะ「${sk.name}」พลัง ~${sk.pow}%` : peek ? ` · ทักษะ「${sk.name}」` : ' · ทักษะ ??? (ต้องมีความรู้มากกว่านี้)';
+      return { k: 'b' + i, ring: rt.id, t: `${c.skip ? '⚡ ข้ามขั้น · ' : ''}${c.b.th} อายุ ${fmt(c.years)} ปี`, d: `วงแหวน${rt.th} · ${c.compat ? '✅ ธาตุเข้ากับวิญญาณยุทธ์' : '❎ ธาตุไม่เข้ากัน'}${spoil}`,
         fx: [['soul', `+${1 + (c.years >= 1000) + (c.years >= 10000) * 2 + (c.years >= 100000) * 4 + c.compat}`], ...(h.escort && h.cost && !h.free ? [['money', -h.cost]] : [])],
         danger: know ? h.death : null, unknown: !know };
     });
@@ -496,7 +515,7 @@ E('hunt', {
     return {
       title: `🔮 ล่าวงแหวนวิญญาณที่ ${idx + 1}`,
       text: `พลังวิญญาณของคุณถึงระดับ ${ringCap(s)} แล้ว คุณออกเดินทางเข้าป่าดาวซิงโต่วเพื่อเลือกสัตว์วิญญาณมาเป็นวงแหวนที่ ${idx + 1} ` + (know ? `ด้วยความรู้ทฤษฎี คุณประเมินว่าร่างกายรับได้ราว <b>${fmt(ringLimit(s, idx))} ปี</b> ยิ่งเกินยิ่งเสี่ยงร่างระเบิด` : 'คุณไม่มีความรู้พอจะประเมินขีดจำกัดของร่างกาย (ต้องมีปัญญา 35+ หรือมีอาจารย์)'),
-      ctx: { choices: choices.map(c => ({ th: c.b.th, years: c.years, compat: c.compat })) },
+      ctx: { choices: choices.map(c => ({ th: c.b.th, years: c.years, compat: c.compat, aff: c.b.aff, skip: !!c.skip })) },
       opts,
     };
   },

@@ -93,6 +93,7 @@ function sceneSpec(s) {
     const b = s.battle;
     spec.kind = { bandits:'road', assassin:'night', killingCity:'killing', evilMaster:'night', bully:'academy', darkInvite:'night', mercJob:'road' }[b.eid] || 'arena';
     if (spec.kind === 'night') spec.tod = 'night';
+    if (b.beast) { spec.kind = 'forest'; spec.foe = { beast: true, color: RING_TIERS[ringTierOf(b.foe.rings.length ? 10 ** (1 + b.foe.rings.length * 0.5) : 100)].color }; return spec; }
     spec.foe = { age: 25, gender: b.foe.name.length % 2 ? 'M' : 'F', cloth: '#6a2a2a', rings: b.foe.rings.map(y => RING_TIERS[ringTierOf(y)].color), aura: TIER_COL[SOUL_BY_ID[b.foe.soul].tier] };
     return spec;
   }
@@ -371,7 +372,7 @@ function renderEvent() {
 function fighterHtml(f, me) {
   const soul = SOUL_BY_ID[f.soul];
   const st = [f.stun ? '😵 ถูกควบคุม' : '', f.shield > 0 ? `🛡️ เกราะ ${f.shield}` : '', f.buff > 0 ? `⬆️ เสริมพลัง ${f.buff}` : '', f.defending ? '🛡️ ป้องกัน' : ''].filter(Boolean).join(' · ');
-  return `<div class="fighter"><div class="fn">${me ? '🧑' : '👤'} ${f.name}</div><div style="color:var(--muted)">Lv.${f.level} · <span class="${TIER_INFO[soul.tier].cls}">${soul.th}</span> · ${f.rings.length} วง</div>
+  return `<div class="fighter"><div class="fn">${me ? '🧑' : f.isBeast ? '🐾' : '👤'} ${f.name}</div><div style="color:var(--muted)">${f.isBeast ? `🐾 สัตว์วิญญาณ ${fmt(f.years)} ปี · พลังเทียบระดับ ${f.level}` : `Lv.${f.level} · <span class="${TIER_INFO[soul.tier].cls}">${soul.th}</span> · ${f.rings.length} วง`}</div>
     <div class="mbar hp"><b style="width:${Math.max(0, f.hp / f.hpMax * 100)}%"></b></div><div class="mlab"><span>❤️ HP</span><span>${Math.max(0, Math.round(f.hp))}/${f.hpMax}</span></div>
     <div class="mbar en"><b style="width:${f.en / f.enMax * 100}%"></b></div><div class="mlab"><span>🌀 พลัง</span><span>${Math.round(f.en)}/${f.enMax}</span></div>
     <div class="fstat">${st}</div></div>`;
@@ -550,12 +551,14 @@ function hgTick(now) {
   if (g.phase === 'wait' && now >= g.until) { g.phase = 'spin'; g.t0 = now; const m = $('hgMsg'); if (m && g.dir < 0) m.textContent = '⚠️ ระวัง! รอบนี้หมุนสวนทาง'; }
   hgPaint(now);
 }
-function huntPress() {
+function huntPress(at) {
   const g = HG; if (!g) return;
-  const now = performance.now(); hgTick(now);
+  // ใช้เวลาที่ผู้เล่นกดจริง (event.timeStamp) ไม่ใช่เวลาที่โค้ดเริ่มทำงาน — ตัดความหน่วงของเบราว์เซอร์ออก
+  const now = at && at > 0 && at <= performance.now() ? at : performance.now(); hgTick(now);
   if (g.phase !== 'spin') return;
-  const a = hgAngle(g, now), inGood = a >= g.start && a <= g.start + g.arc;
-  const inGreat = g.dir > 0 ? a >= g.start && a <= g.start + g.great : a >= g.start + g.arc - g.great && a <= g.start + g.arc;
+  // ระยะผ่อนผันเล็กน้อย (≈ หนึ่งเฟรมของจอ) ให้ความรู้สึกว่ากดตรงแล้วได้จริง
+  const a = hgAngle(g, now), tol = Math.max(4, 360 * 22 / g.T), inGood = a >= g.start - tol && a <= g.start + g.arc + tol;
+  const inGreat = g.dir > 0 ? a >= g.start - tol && a <= g.start + g.great + tol / 2 : a >= g.start + g.arc - g.great - tol / 2 && a <= g.start + g.arc + tol;
   hgResolve(inGood, inGood && inGreat, now);
 }
 function hgResolve(hit, perfect, now, why) {
@@ -641,29 +644,49 @@ function tierPerks(s) {
     ${row('💰', 'ครอบครัวส่งเสียต่อปี', s.bg === 'orphan' ? 'ไม่มี (กำพร้า)' : f.income * 0.25 < 1 ? 'แทบไม่มี' : fmt(f.income * 0.25) + ' เหรียญ', f.income >= 80 ? 'up' : f.income <= 4 ? 'dn' : '')}
     <div class="perk"><span>📊 ค่าเริ่มต้น</span><b>${stats}</b></div></div>${luckBox}`;
 }
+// ---------- หน้าเกิด: ทะเบียนกำเนิดแบบเต็มจอ (ล็อกเพศได้) ----------
+let genderLock = (() => { try { return localStorage.getItem('douluo_gender') || 'R'; } catch (e) { return 'R'; } })();
 function showBirth() {
-  const s = newLife();
-  const fam = familyOf(s), place = placeOf(s), clan = clanOf(s), o = s.birthOdds;
+  const s = newLife({ gender: genderLock });
+  const fam = familyOf(s), place = placeOf(s), clan = clanOf(s), o = s.birthOdds, bg = bgOf(s);
   const tot = FAMILY_TIERS.reduce((a, f) => a + f.weight, 0);
-  overlay(`<div class="landing">
-    <div class="scene-frame"><canvas id="ovScene" width="320" height="180"></canvas><div class="scene-cap">รุ่งเช้าวันที่ลืมตาดูโลก · ${place.th}</div></div>
-    <div class="panel birth">
-      <div class="tag"><b>เกิด</b>แรกเกิด · ทะเบียนกำเนิดเลขที่ ${s.id.toUpperCase()}</div>
-      <h2>คุณคือ${s.gender === 'M' ? 'เด็กชาย' : 'เด็กหญิง'}${s.name} <span class="zh" style="font-size:20px">${s.zh}</span></h2>
-      <p>${s.log[0].lines[1].t}${clan ? ` สายเลือด<b class="gold">${clan.th}</b>ไหลเวียนอยู่ในตัวคุณ` : ''} วิญญาณยุทธ์ของคุณจะถูกปลุกเมื่ออายุ 6 ปี</p>
+  const rel = s.birthYear < 0 ? `${-s.birthYear} ปีก่อนถังซานเกิด` : s.birthYear > 0 ? `${s.birthYear} ปีหลังถังซานเกิด` : 'ปีเดียวกับถังซาน';
+  const bar = (k, label, v, max = 100) => `<div class="bstat"><span class="bi">${IC[k]}</span><span class="bl">${label}</span><span class="bb"><b style="width:${clamp(v / max * 100, 2, 100)}%;--c:${COL[k]}"></b></span><span class="bv">${v}</span><small>${describe(k, s)}</small></div>`;
+  const gBtn = (k, t) => `<button class="gbtn ${genderLock === k ? 'on' : ''}" data-g="${k}">${t}</button>`;
+  overlay(`<div class="birthx">
+    <header class="bx-top">
+      <div class="bx-tag"><span class="seal">生</span><div><b>ทะเบียนกำเนิด</b><small>เลขที่ ${s.id.toUpperCase()} · ปีทวีป ${WORLD_EPOCH + s.birthYear} (${rel})</small></div></div>
+      <div class="bx-g" role="group" aria-label="ล็อกเพศ"><span>เพศของชีวิตถัดไป</span>${gBtn('R', '🎲 สุ่ม')}${gBtn('M', '♂ ชาย')}${gBtn('F', '♀ หญิง')}</div>
+      <div class="bx-act"><button class="pbtn ghost" id="ovRe">🔄 ขอเกิดใหม่</button><button class="pbtn" id="ovGo">เริ่มชีวิตนี้ ➡</button></div>
+    </header>
+    <section class="bx-col bx-who">
+      <div class="scene-frame"><canvas id="ovScene" width="320" height="180"></canvas><div class="scene-cap">รุ่งเช้าวันที่ลืมตาดูโลก · ${place.th}</div></div>
+      <div class="bx-name"><h2>${s.name}</h2><span class="zh">${s.zh}</span></div>
+      <div class="bx-sub">${s.gender === 'M' ? '♂ เด็กชาย' : '♀ เด็กหญิง'} · ${place.th} (${place.nation})</div>
+      <p class="bx-story">${s.log[0].lines[1].t}${clan ? ` สายเลือด<b class="gold">${clan.th}</b>ไหลเวียนอยู่ในตัวคุณ` : ''}</p>
+      <div class="bx-rare"><small>โอกาสเกิดมาแบบนี้ทั้งชุด</small><b>1 ใน ${fmt(o.total)}</b></div>
+    </section>
+    <section class="bx-col">
+      <h3>🏠 ครอบครัวและภูมิหลัง</h3>
       <div class="bgrid">
-        <div class="bcell"><div class="k">บ้านเกิด</div><div class="v">${place.th}</div><div class="o">โอกาส ${(o.place * 100).toFixed(1)}% · ${place.nation}</div></div>
-        <div class="bcell"><div class="k">เพศ</div><div class="v">${s.gender === 'M' ? 'ชาย' : 'หญิง'}</div><div class="o">โอกาส 50%</div></div>
-        <div class="bcell"><div class="k">ฐานะครอบครัว</div><div class="v">${clan ? clan.th : fam.th}</div><div class="o">โอกาส ${(o.family * 100).toFixed(1)}%</div></div>
-        <div class="bcell"><div class="k">โอกาสเกิดแบบนี้ทั้งชุด</div><div class="v">1 ใน ${fmt(o.total)}</div><div class="o">ของเด็กที่เกิดปีเดียวกันในทวีป</div></div>
-        <div class="bcell wide"><div class="k">ภูมิหลัง</div><div class="v">${bgOf(s).th}</div><div class="o">${bgOf(s).desc}</div></div>
+        <div class="bcell"><div class="k">ฐานะครอบครัว</div><div class="v">${fam.th}</div><div class="o">${'◆'.repeat(fam.id)}${'◇'.repeat(6 - fam.id)} · โอกาส ${(o.family * 100).toFixed(1)}%</div></div>
+        <div class="bcell"><div class="k">บ้านเกิด</div><div class="v">${place.th}</div><div class="o">โอกาส ${(o.place * 100).toFixed(1)}%</div></div>
+        <div class="bcell wide"><div class="k">ภูมิหลัง</div><div class="v">${bg.th}${clan ? ` · ${clan.th}` : ''}</div><div class="o">${bg.desc}</div></div>
+        ${clan ? `<div class="bcell wide"><div class="k">สายเลือดตระกูล</div><div class="v">${SOUL_BY_ID[clan.soul].th} <span class="zh">${SOUL_BY_ID[clan.soul].zh}</span></div><div class="o">${clan.desc}</div></div>` : ''}
       </div>
+      <div class="money-box"><span class="big">💰 ${fmt(s.money)}</span><span>เหรียญทองวิญญาณของครอบครัว</span></div>
+      <h3>📊 ค่าแรกเกิด</h3>
+      <div class="bstats">${bar('str', 'พละกำลัง', s.str)}${bar('agi', 'ความว่องไว', s.agi)}${bar('spi', 'พลังจิต', s.spi)}${bar('wis', 'ปัญญา', s.wis)}${bar('luck', 'โชค', s.luck)}${bar('mood', 'อารมณ์', s.mood)}</div>
+    </section>
+    <section class="bx-col">
       ${tierPerks(s)}
+      <h3>👶 เด็กที่เกิดปีเดียวกันในทวีป</h3>
       <div class="chart">${FAMILY_TIERS.map(f => `<div class="${f.id === fam.id ? 'me' : ''}"><span>${Math.round(f.weight / tot * 100)}%</span><b style="height:${f.weight / 32 * 80}px"></b>${f.th}</div>`).join('')}</div>
-      <div class="money-box"><span class="big">💰 ${fmt(s.money)}</span><span>เหรียญทองวิญญาณของครอบครัว · ดวงชะตา 🍀 ${s.luck}/100</span></div>
-      <div class="btns"><button class="pbtn" id="ovGo">ต่อไป</button><button class="pbtn ghost" id="ovRe">ขอเกิดใหม่</button></div>
-    </div></div>`, true);
+      <div class="note bx-hint">วิญญาณยุทธ์และพลังวิญญาณแต่กำเนิดจะถูกเปิดเผยในพิธีปลุกเมื่ออายุ 6 ขวบ · ทุกตัวเลขบนหน้านี้คือโอกาส ไม่ใช่โชคชะตาที่ตายตัว</div>
+    </section>
+  </div>`, true);
   drawScene($('ovScene'), { kind: CITY_PLACES.includes(s.place) ? 'city' : 'home', tod: 'dawn', place: s.place, seed: hash(s.id), family: true, hero: { age: 1, gender: s.gender, cloth: '#e8e4dc', rings: [] } });
+  document.querySelectorAll('.gbtn').forEach(b => b.onclick = () => { genderLock = b.dataset.g; try { localStorage.setItem('douluo_gender', genderLock); } catch (e) {} showBirth(); });
   $('ovRe').onclick = showBirth;
   $('ovGo').onclick = () => { S = s; S.feed = []; S.feedD = {}; startLife(S); closeOverlay(); save(); startGame(); };
 }
@@ -817,14 +840,14 @@ $('eventBox').onclick = e => {
   const a = e.target.closest('[data-act]');
   if (a && !a.disabled) { run(() => doAct(S, a.dataset.act)); return; }
   if (e.target.closest('#btnNextYear')) { nextYearNow(); return; }
-  if (e.target.closest('#hgBtn') || e.target.closest('#hgBar')) { huntPress(); return; }
+  if (e.target.closest('#hgBtn') || e.target.closest('#hgBar')) return; // จัดการที่ pointerdown แล้ว
   if (e.target.id === 'evTomb') showTomb();
   if (e.target.id === 'evNew') showBirth();
 };
 document.addEventListener('keydown', e => {
   if (!$('overlay').hidden) { if (e.key === 'Escape' && S && S.alive && !$('game').hidden) closeOverlay(); return; }
   if (!S || ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-  if (S.hunt) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) huntPress(); } return; }
+  if (S.hunt) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) huntPress(e.timeStamp); } return; }
   if (/^[1-9]$/.test(e.key)) { const f = keyMap[+e.key - 1]; if (f) { e.preventDefault(); f(); } }
   else if (e.key === 'Enter') { e.preventDefault(); nextYearNow(); }
   else if (e.key === ' ') { e.preventDefault(); playing = !playing; renderTime(); }
@@ -833,3 +856,6 @@ document.addEventListener('keydown', e => {
 showLanding();
 
 $('mLast').onclick = e => { if (e.target.closest('[data-goto]')) setTab('story'); };
+
+// มินิเกม: ตัดสินตอนกดลง (pointerdown) ไม่รอปล่อยนิ้ว/เมาส์
+$('eventBox').addEventListener('pointerdown', e => { if (S && S.hunt && (e.target.closest('#hgBtn') || e.target.closest('#hgBar'))) { e.preventDefault(); huntPress(e.timeStamp); } });

@@ -5,6 +5,7 @@ const BATTLE_KINDS = {
   spar:       { th:'ประลองมิตรภาพ', death:0.005, dis:0.02, hurt:[8, 22], surrenderDeath:0 },
   arena:      { th:'สนามประลองวิญญาณ', death:0.05, dis:0.07, hurt:[15, 40], surrenderDeath:0 },
   deathmatch: { th:'ประลองเป็นตาย', death:0.75, dis:0.4, hurt:[30, 70], surrenderDeath:0.4 },
+  beast:      { th:'ต่อสู้กับสัตว์วิญญาณ', death:0.15, dis:0.15, hurt:[20, 50], surrenderDeath:0.05 },
 };
 
 function genFoeRings(level) {
@@ -45,10 +46,11 @@ function startBattle(s, kind, opts = {}) {
     hpFrac: s.hp / maxHp(s),
     mult: 1 + disMod(s, 'combat') + (s.souls.length > 1 ? 0.15 : 0) + (s.flags.killing ? 0.12 : 0) + (s.flags.hiddenWeapon ? 0.08 : 0) + (s.flags.chaosHammer ? 0.06 : 0),
   });
+  if (opts.beast) { foe.isBeast = true; foe.years = opts.years || 0; }
   s.battle = {
-    kind, title: opts.title || `⚔️ ${BATTLE_KINDS[kind].th}`, eid: opts.eid || null,
+    kind, title: opts.title || `⚔️ ${BATTLE_KINDS[kind].th}`, eid: opts.eid || null, deathP: opts.deathP, beast: !!opts.beast,
     foeTitle: opts.foeTitle || null, me, foe, turn: 1, over: false, result: null,
-    log: [{ t: `${opts.foeTitle ? opts.foeTitle + ' ' : ''}<b>${foe.name}</b> — ระดับ ${fl} (${rankOf(fl).th}) · วิญญาณยุทธ์: ${soulLabel(foeSoul)} · วงแหวน ${foe.rings.length} วง`, c: 'muted' }],
+    log: [opts.beast ? { t: `🐾 <b>${foe.name}</b> อายุ ${fmt(opts.years || 0)} ปี — แข็งแกร่งเทียบวิญญาจารย์ระดับ ${fl}`, c: 'muted' } : { t: `${opts.foeTitle ? opts.foeTitle + ' ' : ''}<b>${foe.name}</b> — ระดับ ${fl} (${rankOf(fl).th}) · วิญญาณยุทธ์: ${soulLabel(foeSoul)} · วงแหวน ${foe.rings.length} วง`, c: 'muted' }],
   };
 }
 
@@ -139,6 +141,7 @@ function battleExp(s, b, won) {
 function finishBattle(s) {
   const b = s.battle;
   if (!b || !b.over) return;
+  s._lastBattle = b;
   s._delta = [];
   s.battle = null;
   const seg0 = segStart(s);
@@ -157,7 +160,7 @@ function finishBattle(s) {
   } else {
     const surr = b.result === 'surrender';
     log(s, surr ? `🏳️ คุณยอมแพ้ใน${label}` : `💔 แพ้${label} ให้ ${b.foe.name}`, 'bad');
-    const pDeath = surr ? K.surrenderDeath : K.death;
+    const pDeath = surr ? K.surrenderDeath : (b.deathP ?? K.death);
     const cause = b.kind === 'deathmatch' ? `ถูก${b.foeTitle || ''} ${b.foe.name} สังหารใน${label}` : `เสียชีวิตจากท่าไม้ตายใน${label}`;
     if (R.chance(pDeath)) die(s, cause);
     else {
