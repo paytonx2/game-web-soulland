@@ -256,24 +256,15 @@ function drawScene(canvas, spec) {
     sprite(BEAST, { b: spec.beastColor || '#2a2a2a', e: '#ff4a3a' }, 180, feet - 32, 4, true);
     glow(190, feet - 22, 8, '#ff3a2a', 0.35);
   } else if (spec.foe) {
-    const A = spec.anim || {};
-    if (A.aura) glow(A.aura.x, feet - 18, 20, A.aura.color, A.aura.a);
+    const A = spec.anim || {}, foe = { ...spec.foe, flip: true };
+    if (A.tint) { X.save(); X.globalAlpha = A.tint.a; px(0, 0, W, H, A.tint.color); X.restore(); }
+    if (A.aura) glow(A.aura.x, feet - 18, A.aura.r || 20, A.aura.color, A.aura.a);
+    if (A.rays) rays(A.rays.x, feet - 18, A.rays.color, A.rays.a, A.rays.t || 0);
+    for (const g of A.ghosts || []) { X.save(); X.globalAlpha = g.a; person(g.x, feet, g.foe ? foe : hero); X.restore(); }
     person(110 + (A.hx || 0), feet, hero);
-    person(190 + (A.fx || 0), feet, { ...spec.foe, flip: true });
+    person(190 + (A.fx || 0), feet, foe);
     if (!spec.anim) for (let i = 0; i < 6; i++) px(150 + r() * 30, feet - 30 + r() * 20, 2, 2, '#fff2a0');
-    if (A.burst) {
-      const B = A.burst;
-      X.save(); X.globalAlpha = B.a; X.strokeStyle = B.color; X.lineWidth = 3;
-      X.beginPath(); X.ellipse(B.x, feet - 16, B.r, B.r * 0.55, 0, 0, Math.PI * 2); X.stroke();
-      X.lineWidth = 1; X.beginPath(); X.ellipse(B.x, feet - 16, B.r * 0.6, B.r * 0.33, 0, 0, Math.PI * 2); X.stroke();
-      X.restore(); glow(B.x, feet - 18, B.r * 0.7, B.color, B.a * 0.45);
-    }
-    if (A.slash) {
-      const S2 = A.slash; X.save(); X.globalAlpha = S2.a; X.strokeStyle = S2.color || '#fff6d0'; X.lineWidth = 2;
-      for (let k = -1; k <= 1; k++) { X.beginPath(); X.moveTo(S2.x - 14, feet - 34 + k * 7); X.lineTo(S2.x + 14, feet - 14 + k * 7); X.stroke(); }
-      X.restore();
-    }
-    if (A.flash) { X.save(); X.globalAlpha = A.flash.a; px(0, 0, W, H, A.flash.color); X.restore(); }
+    battleFx(A, feet);
   } else if (spec.partner) {
     person(130, feet, hero);
     person(164, feet, { ...spec.partner, flip: true });
@@ -283,6 +274,36 @@ function drawScene(canvas, spec) {
     person(186, feet, { age: 33, gender: 'F', cloth: '#8a4a5a', flip: true });
   } else person(150, feet, hero);
   vignette();
+}
+
+// ---------- เอฟเฟกต์การต่อสู้ (เรียกต่อเฟรมจากแอนิเมชัน) ----------
+function rays(x, y, color, a, t) {
+  X.save(); X.globalAlpha = a; X.strokeStyle = color; X.lineWidth = 1;
+  for (let i = 0; i < 10; i++) { const ang = i / 10 * Math.PI * 2 + t * 2, r0 = 8, r1 = 18 + (i % 2) * 8; X.beginPath(); X.moveTo(x + Math.cos(ang) * r0, y + Math.sin(ang) * r0 * 0.7); X.lineTo(x + Math.cos(ang) * r1, y + Math.sin(ang) * r1 * 0.7); X.stroke(); }
+  X.restore();
+}
+function battleFx(A, feet) {
+  const cy = feet - 18;
+  if (A.orb) { const O = A.orb; glow(O.x, O.y ?? cy, O.r * 2.2, O.color, 0.55); X.save(); X.fillStyle = '#fff'; X.globalAlpha = 0.9; X.beginPath(); X.arc(O.x, O.y ?? cy, O.r * 0.5, 0, Math.PI * 2); X.fill(); X.fillStyle = O.color; X.globalAlpha = 0.8; X.beginPath(); X.arc(O.x, O.y ?? cy, O.r, 0, Math.PI * 2); X.fill(); X.restore();
+    for (let i = 0; i < 6; i++) px(O.x - (O.dir || 1) * (4 + i * 4) + (Math.random() - 0.5) * 4, (O.y ?? cy) + (Math.random() - 0.5) * 6, 2, 2, O.color); }
+  if (A.beam) { const B = A.beam; X.save(); X.globalAlpha = B.a; const g = X.createLinearGradient(B.x0, 0, B.x1, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.3, B.color); g.addColorStop(1, '#fff');
+    X.fillStyle = g; X.fillRect(Math.min(B.x0, B.x1), cy - B.w / 2, Math.abs(B.x1 - B.x0), B.w); X.fillStyle = '#fff'; X.fillRect(Math.min(B.x0, B.x1), cy - 1, Math.abs(B.x1 - B.x0), 2); X.restore(); glow(B.x1, cy, B.w * 1.6, B.color, B.a * 0.6); }
+  if (A.chains) { const C = A.chains; X.save(); X.globalAlpha = C.a; X.strokeStyle = C.color; X.lineWidth = 2;
+    for (let k = 0; k < 3; k++) { X.beginPath(); for (let i = 0; i <= 20; i++) { const u = i / 20, x = C.x0 + (C.x1 - C.x0) * u * C.p, y = feet - 6 - k * 9 + Math.sin(u * 12 + k * 2 + C.t * 8) * 4; i ? X.lineTo(x, y) : X.moveTo(x, y); } X.stroke(); }
+    if (C.p >= 1) { X.lineWidth = 2; for (let k = 0; k < 3; k++) { X.beginPath(); X.ellipse(C.x1, feet - 8 - k * 9, 9, 3, 0, 0, Math.PI * 2); X.stroke(); } }
+    X.restore(); }
+  if (A.shield) { const Sh = A.shield; X.save(); X.globalAlpha = Sh.a; X.strokeStyle = Sh.color; X.lineWidth = 2; X.beginPath();
+    for (let i = 0; i <= 6; i++) { const ang = i / 6 * Math.PI * 2 + Math.PI / 6, x = Sh.x + Math.cos(ang) * 20, y = cy + Math.sin(ang) * 22; i ? X.lineTo(x, y) : X.moveTo(x, y); } X.stroke(); X.globalAlpha = Sh.a * 0.18; X.fillStyle = Sh.color; X.fill(); X.restore(); }
+  for (const p of A.parts || []) { X.save(); X.globalAlpha = p.a ?? 1; px(Math.round(p.x), Math.round(p.y), p.s || 2, p.s || 2, p.color); X.restore(); }
+  if (A.burst) { const B = A.burst; X.save(); X.globalAlpha = B.a; X.strokeStyle = B.color; X.lineWidth = 3;
+    X.beginPath(); X.ellipse(B.x, feet - 16, B.r, B.r * 0.55, 0, 0, Math.PI * 2); X.stroke();
+    X.lineWidth = 1; X.beginPath(); X.ellipse(B.x, feet - 16, B.r * 0.6, B.r * 0.33, 0, 0, Math.PI * 2); X.stroke();
+    for (let i = 0; i < 12; i++) { const ang = i / 12 * Math.PI * 2; X.beginPath(); X.moveTo(B.x + Math.cos(ang) * B.r * 0.7, cy + Math.sin(ang) * B.r * 0.5); X.lineTo(B.x + Math.cos(ang) * B.r * 1.15, cy + Math.sin(ang) * B.r * 0.8); X.stroke(); }
+    X.restore(); glow(B.x, cy, B.r * 0.8, B.color, B.a * 0.5); }
+  if (A.slash) { const S2 = A.slash; X.save(); X.globalAlpha = S2.a; X.strokeStyle = S2.color || '#fff6d0'; X.lineWidth = 2;
+    for (let k = -1; k <= 1; k++) { X.beginPath(); X.moveTo(S2.x - 14, feet - 34 + k * 7); X.lineTo(S2.x + 14, feet - 14 + k * 7); X.stroke(); }
+    X.restore(); }
+  if (A.flash) { X.save(); X.globalAlpha = A.flash.a; px(0, 0, W, H, A.flash.color); X.restore(); }
 }
 
 function drawAwaken(spec, r) {

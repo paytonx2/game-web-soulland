@@ -58,7 +58,7 @@ const skillCost = i => 8 + i * 5;
 const side = (b, x) => x === b.me ? 'me' : 'foe';
 function hit(b, att, def, raw, label) {
   const dodge = clamp(5 + (def.agi - att.agi) * 0.25, 3, 35) / 100;
-  if (Math.random() < dodge) { b.log.push({ t: `${def.name} หลบ${label}ได้!`, c: 'muted' }); b.anim.push({ a: side(b, att), t: 'miss', col: b._col }); return 0; }
+  if (Math.random() < dodge) { b.log.push({ t: `${def.name} หลบ${label}ได้!`, c: 'muted' }); b.anim.push({ a: side(b, att), t: 'miss', col: b._col, role: b._col ? b._role : null }); return 0; }
   let dmg = raw * R.f(0.85, 1.15);
   const crit = Math.random() < 0.08 + att.luck / 2000;
   if (crit) dmg *= 1.6;
@@ -66,7 +66,7 @@ function hit(b, att, def, raw, label) {
   if (def.shield > 0) { dmg *= 0.4; def.shield--; }
   dmg = Math.max(1, Math.round(dmg));
   def.hp -= dmg;
-  b.anim.push({ a: side(b, att), t: 'hit', n: dmg, crit, col: b._col });
+  b.anim.push({ a: side(b, att), t: 'hit', n: dmg, crit, col: b._col, role: b._col ? b._role : null, stun: false });
   b.log.push({ t: `${att.name} ใช้${label} ${crit ? '<b>คริติคอล!</b> ' : ''}สร้างความเสียหาย <b>${dmg}</b>`, c: att === b.me ? 'good' : 'bad' });
   return dmg;
 }
@@ -85,7 +85,7 @@ function act(b, att, def, action) {
   // ทักษะวงแหวน
   const i = +action.split(':')[1], years = att.rings[i];
   att.en -= skillCost(i);
-  b._col = RING_TIERS[ringTierOf(years)].color;
+  b._col = RING_TIERS[ringTierOf(years)].color; b._role = SOUL_BY_ID[att.soul].role;
   const role = SOUL_BY_ID[att.soul].role;
   const pow = baseAtk(att) * (1.2 + ringPower(years) / 35);
   const name = `ทักษะวงแหวนที่ ${i + 1} 「${SKILL_NAMES[role][i]}」`;

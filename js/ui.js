@@ -184,7 +184,7 @@ function renderLeft() {
       <span class="k">บุตร</span><span class="v">${s.children || '—'}</span>
       ${s.disciple ? `<span class="k">ศิษย์</span><span class="v">${s.disciple}</span>` : ''}
     </div></section>`;
-  drawFigure($('portrait'), { ...heroSpec(s), rings: [], aura: null }, '#1c160d', 2);
+  drawFigure($('portrait'), { ...heroSpec(s), rings: [], aura: null }, '#1a1917', 2);
 }
 
 function tendHtml(s) {
@@ -215,8 +215,8 @@ function actCard(s, x) {
   const a = x.a, fx = a.fx ? a.fx(s) : [];
   const odds = a.odds ? a.odds(s) : null, danger = a.danger ? a.danger(s) : null;
   const side = danger ? `<span class="risk">☠️ ${(danger * 100).toFixed(danger < 0.01 ? 1 : 0)}%</span>` : odds != null ? `<span class="okp">🎲 ${Math.round(odds * 100)}%</span>` : '';
-  return `<button class="actc ${x.lock ? 'locked' : ''}" data-act="${a.id}" ${x.lock ? 'disabled' : ''} title="${a.d}${x.lock ? ' — 🔒 ' + x.lock : ''}">
-    <span class="ai">${a.icon}</span><span class="ab"><b>${a.t}</b><small>${a.d}</small>${fx.length ? `<span class="chips">${chips(fx)}</span>` : ''}${x.lock ? `<span class="lock">🔒 ${x.lock}</span>` : ''}</span>
+  return `<button class="actc ${x.lock ? 'locked' : ''} ${a.secret ? 'secret' : ''}" data-act="${a.id}" ${x.lock ? 'disabled' : ''} title="${a.d}${x.lock ? ' — 🔒 ' + x.lock : ''}">
+    <span class="ai">${a.icon}</span><span class="ab">${a.secret ? '<span class="stag">✨ ทางลับ · โชคของคุณเปิดทางนี้</span>' : ''}<b>${a.t}</b><small>${a.d}</small>${fx.length ? `<span class="chips">${chips(fx)}</span>` : ''}${x.lock ? `<span class="lock">🔒 ${x.lock}</span>` : ''}</span>
     <span class="aside">${a.ap ? `<span class="cost">⏳${a.ap}</span>` : '<span class="cost free">ฟรี</span>'}${a.rep > 1 && a.rep < 9 ? `<span class="rep">${x.used}/${a.rep}</span>` : ''}${side}</span></button>`;
 }
 
@@ -342,7 +342,7 @@ function optHtml(c, i) {
   if (c.path) fx.push(['', `🧭 ${PATHS[c.path].th}`]);
   if (c.boost) fx.push(['soul', `×${c.boost} ช่วงนี้`]);
   if (c.years > 1) fx.push(['', `⏳ ${c.years} ปี`]);
-  return `<button class="opt" data-k="${i}" ${c.lock ? 'disabled' : ''}><span class="num">${i + 1}</span><span><span class="tt">${rt ? `<span class="rdot" style="background:${rt.color}"></span>` : ''}${c.t}</span>${c.d ? `<div class="dd">${c.d}</div>` : ''}${c.lock ? `<div class="lock">🔒 ${c.lock}</div>` : ''}${fx.length ? `<div class="chips">${chips(fx)}</div>` : ''}${extra}</span>${side}</button>`;
+  return `<button class="opt ${c.secret ? 'secret' : ''}" data-k="${i}" ${c.lock ? 'disabled' : ''}><span class="num">${i + 1}</span><span>${c.secret ? '<span class="stag">✨ ทางลับ</span>' : ''}<span class="tt">${rt ? `<span class="rdot" style="background:${rt.color}"></span>` : ''}${c.t}</span>${c.d ? `<div class="dd">${c.d}</div>` : ''}${c.lock ? `<div class="lock">🔒 ${c.lock}</div>` : ''}${fx.length ? `<div class="chips">${chips(fx)}</div>` : ''}${extra}</span>${side}</button>`;
 }
 function renderEvent() {
   const s = S;
@@ -404,45 +404,78 @@ function floatNum(text, x, cls) {
   el.style.left = (x / 320 * 100) + '%';
   fr.appendChild(el); setTimeout(() => el.remove(), 1100);
 }
+const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const sparks = (x, y, n, color, k) => Array.from({ length: n }, (_, i) => { const ang = i / n * Math.PI * 2 + i, d = 4 + k * 26; return { x: x + Math.cos(ang) * d, y: y + Math.sin(ang) * d * 0.7, color: i % 3 ? color : '#fff', a: 1 - k, s: 2 }; });
+// ภาพหนึ่งเฟรมของเหตุการณ์ ev ที่เวลา t (0–1)
+function fxFrame(ev, t, feet) {
+  const me = ev.a === 'me', self = me ? POS.me : POS.foe, tgt = me ? POS.foe : POS.me, dir = me ? 1 : -1, A = {}, cy = feet - 18;
+  const mk = me ? 'hx' : 'fx', tk = me ? 'fx' : 'hx', col = ev.col || '#fff3c4';
+  const hitAt = (k, power) => {
+    if (ev.t === 'miss') { A[tk] = Math.round(-dir * 16 * Math.sin(Math.min(1, k * 2) * Math.PI)); return; }
+    A[tk] = Math.round(Math.sin(k * Math.PI * 7) * 3 * (1 - k) + dir * (power ? 10 : 5) * (1 - k));
+    A.parts = sparks(tgt, cy, power ? 14 : 8, col, k);
+    if (k < 0.35) A.slash = { x: tgt, a: 1 - k / 0.35, color: col };
+    if (ev.crit && k < 0.3) A.flash = { color: '#fff3c4', a: 0.5 * (1 - k / 0.3) };
+  };
+  if (ev.t === 'hit' || ev.t === 'miss') {
+    if (!ev.col) {
+      // โจมตีปกติ: พุ่งเข้าประชิด (มีภาพติดตา) → ปะทะ → กระโดดกลับ
+      const D2 = 56 * dir;
+      if (t < 0.35) { const k = ease(t / 0.35); A[mk] = Math.round(D2 * k); A.ghosts = [0.25, 0.5, 0.75].map(f => ({ x: self + D2 * k * f, a: 0.18 * f, foe: !me })); }
+      else if (t < 0.6) { A[mk] = D2; hitAt((t - 0.35) / 0.25, false); }
+      else { const k = ease((t - 0.6) / 0.4); A[mk] = Math.round(D2 * (1 - k)); }
+      return A;
+    }
+    // ทักษะวงแหวน: รวมพลัง → ปล่อยพลังตามสาย → ระเบิดที่เป้า
+    A.tint = { color: col, a: 0.12 * Math.sin(Math.min(1, t) * Math.PI) };
+    if (t < 0.3) { const k = t / 0.3; A.aura = { x: self, color: col, a: 0.35 + 0.4 * k, r: 14 + k * 14 }; A.rays = { x: self, color: col, a: k, t }; A.parts = sparks(self, cy, 10, col, 1 - k).map(p => ({ ...p, a: k })); return A; }
+    const role = ev.role;
+    if (t < 0.6) {
+      const k = (t - 0.3) / 0.3;
+      if (role === 'agile') { const D2 = 70 * dir * ease(k); A[mk] = Math.round(D2); A.ghosts = [0.2, 0.45, 0.7].map(f => ({ x: self + D2 * f, a: 0.3 * f, foe: !me })); A.aura = { x: self + D2, color: col, a: 0.5 }; }
+      else if (role === 'control') A.chains = { x0: self, x1: tgt, p: ease(k), t, color: col, a: 0.9 };
+      else if (role === 'power' || role === 'defense') A.orb = { x: self + (tgt - self) * ease(k), r: 6 + k * 3, color: col, dir };
+      else A.beam = { x0: self, x1: self + (tgt - self) * ease(k), w: 6, color: col, a: 0.9 };
+      A.aura = A.aura || { x: self, color: col, a: 0.4 * (1 - k) };
+      return A;
+    }
+    const k = (t - 0.6) / 0.4;
+    if (role === 'agile') A[mk] = Math.round(70 * dir * (1 - ease(k)));
+    if (role === 'control') A.chains = { x0: self, x1: tgt, p: 1, t, color: col, a: 1 - k };
+    A.burst = { x: tgt, r: 10 + k * 34, color: col, a: 1 - k };
+    hitAt(k, true);
+    return A;
+  }
+  // ทักษะกับตัวเอง
+  const c = { heal: '#7fe8a0', buff: '#ffd36a', def: '#8ec5ff', stun: '#c58bff' }[ev.t] || col;
+  A.aura = { x: self, color: c, a: 0.55 * (1 - t), r: 16 + t * 10 };
+  if (ev.t === 'def') A.shield = { x: self, color: c, a: 1 - t * 0.7 };
+  else if (ev.t === 'stun') A.chains = { x0: self, x1: self, p: 1, t, color: c, a: 1 - t };
+  else { A.rays = { x: self, color: c, a: 1 - t, t }; A.parts = Array.from({ length: 10 }, (_, i) => ({ x: self - 14 + (i * 37 % 28), y: cy + 16 - t * 40 - (i % 4) * 6, color: c, a: 1 - t, s: 2 })); }
+  return A;
+}
 function playBattle(b, done) {
   const seq = (b && b.anim) || [];
   if (!seq.length) return done();
   animBusy = true; $('eventBox').classList.add('busy');
-  const canvas = $('scene'), fr = canvas.closest('.scene-frame'), base = sceneSpec(S);
+  const canvas = $('scene'), fr = canvas.closest('.scene-frame'), base = sceneSpec(S), feet = 154;
   let i = 0;
   const next = () => {
     if (i >= seq.length) { animBusy = false; $('eventBox').classList.remove('busy'); return done(); }
-    const ev = seq[i++], me = ev.a === 'me', self = me ? POS.me : POS.foe, tgt = me ? POS.foe : POS.me, dir = me ? 1 : -1;
-    const T = ev.t === 'hit' || ev.t === 'miss' ? 520 : 420, t0 = performance.now();
+    const ev = seq[i++], me = ev.a === 'me', self = me ? POS.me : POS.foe, tgt = me ? POS.foe : POS.me;
+    const T = ev.t === 'hit' || ev.t === 'miss' ? (ev.col ? 980 : 640) : 560, hitT = ev.col ? 0.6 : 0.35, t0 = performance.now();
     let shown = false;
     const frame = now => {
-      const t = Math.min(1, (now - t0) / T), A = {};
-      if (ev.t === 'hit' || ev.t === 'miss') {
-        const lunge = Math.sin(Math.min(1, t / 0.5) * Math.PI) * 40 * dir;
-        A[me ? 'hx' : 'fx'] = Math.round(lunge);
-        if (ev.col) A.aura = { x: self + lunge, color: ev.col, a: 0.5 * (1 - t) };
-        if (t > 0.3) {
-          const k = (t - 0.3) / 0.7;
-          if (ev.t === 'hit') {
-            A[me ? 'fx' : 'hx'] = Math.round(Math.sin(k * Math.PI * 6) * 3 * (1 - k) + dir * 4 * (1 - k));
-            A.slash = { x: tgt, a: 1 - k, color: ev.col };
-            if (ev.col) A.burst = { x: tgt, r: 8 + k * 30, color: ev.col, a: 1 - k };
-            if (ev.crit && k < 0.4) A.flash = { color: '#fff3c4', a: 0.45 * (1 - k / 0.4) };
-          } else A[me ? 'fx' : 'hx'] = Math.round(-dir * 14 * Math.sin(k * Math.PI));
-          if (!shown) {
-            shown = true;
-            if (ev.t === 'miss') floatNum('หลบ!', tgt, 'miss');
-            else { floatNum((ev.crit ? 'คริ! ' : '') + '−' + ev.n, tgt, (me ? 'out' : 'in') + (ev.crit ? ' crit' : '')); if (ev.crit) { fr.classList.remove('shake'); void fr.offsetWidth; fr.classList.add('shake'); } }
-          }
-        }
-      } else {
-        const col = { heal: '#7fe8a0', buff: '#ffd36a', def: '#8ec5ff', stun: '#c58bff' }[ev.t] || ev.col;
-        A.burst = { x: self, r: 6 + t * 26, color: col, a: 1 - t };
-        A.aura = { x: self, color: col, a: 0.5 * (1 - t) };
-        if (!shown) { shown = true; floatNum({ heal: '+' + ev.n, buff: 'พลัง↑', def: 'ตั้งรับ', stun: 'ถูกควบคุม' }[ev.t], self, ev.t); }
+      const t = Math.min(1, (now - t0) / T);
+      drawScene(canvas, { ...base, anim: fxFrame(ev, t, feet) });
+      const isAtk = ev.t === 'hit' || ev.t === 'miss';
+      if (!shown && (!isAtk || t >= hitT)) {
+        shown = true;
+        if (ev.t === 'miss') floatNum('หลบ!', tgt, 'miss');
+        else if (ev.t === 'hit') { floatNum((ev.crit ? 'คริ! ' : '') + '−' + ev.n, tgt, (me ? 'out' : 'in') + (ev.crit ? ' crit' : '')); if (ev.crit || ev.col) { fr.classList.remove('shake'); void fr.offsetWidth; fr.classList.add(ev.crit ? 'shake' : 'shake-s'); } }
+        else floatNum({ heal: '+' + ev.n, buff: 'พลัง↑', def: 'ตั้งรับ', stun: 'ถูกควบคุม' }[ev.t], self, ev.t);
       }
-      drawScene(canvas, { ...base, anim: A });
-      if (t < 1) requestAnimationFrame(frame); else { drawScene(canvas, { ...base, anim: {} }); setTimeout(next, 90); }
+      if (t < 1) requestAnimationFrame(frame); else { drawScene(canvas, { ...base, anim: {} }); setTimeout(next, 80); }
     };
     requestAnimationFrame(frame);
   };
@@ -450,7 +483,7 @@ function playBattle(b, done) {
 }
 
 // ---------- overlay ----------
-function overlay(html) { $('ovCard').innerHTML = html; $('overlay').hidden = false; }
+function overlay(html, art = false) { $('ovCard').innerHTML = html; $('overlay').hidden = false; $('overlay').classList.toggle('art', art); $('overlay').scrollTop = 0; }
 function closeOverlay() { $('overlay').hidden = true; }
 
 function showLanding() {
@@ -468,7 +501,7 @@ function showLanding() {
   ];
   overlay(`<div class="land">
     <section class="hero">
-      <canvas id="ovScene" width="320" height="180"></canvas>
+      <canvas id="ovScene" width="320" height="180"></canvas><span class="seal">斗罗大陆</span>
       <div class="hero-in">
         <div class="emblem" aria-hidden="true">${['#f5f5f5', '#f5c518', '#9b4dff', '#1b1b1b', '#e0263a', '#ffb02e'].map((c, i) => `<i style="--c:${c};--i:${i}"></i>`).join('')}<span>魂</span></div>
         <div class="kicker">斗罗大陆 · DOULUO LIFE SIMULATOR</div>
@@ -483,7 +516,7 @@ function showLanding() {
       <div class="legend">${legend.map(([k, t]) => `<div><span>${IC[k]}</span><b>${t}</b><small>${STAT_HELP[k]}</small></div>`).join('')}</div>
       <div class="note">ทุกปีมีแต้มเวลาให้ใช้ทำกิจกรรม · ทุกตัวเลือกบอกผลล่วงหน้า · กดเลข 1–9 เพื่อเลือก · Enter = ปีถัดไป · Space = หยุดเวลา</div>
     </details>
-  </div>`);
+  </div>`, true);
   drawScene($('ovScene'), { kind: 'city', tod: 'dusk', place: 'tiandou', seed: 7, hero: { age: 20, gender: 'M', cloth: '#3a2a12', rings: ['#f5c518', '#9b4dff', '#9b4dff', '#1b1b1b'], aura: '#ffd36a' }, foe: { age: 20, gender: 'F', cloth: '#5a1a1a', rings: ['#f5c518', '#f5c518', '#9b4dff'], aura: '#ff9d4a' } });
   $('ovBorn').onclick = showBirth;
   if (canContinue) $('ovCont').onclick = () => { S = sv; closeOverlay(); startGame(); };
@@ -533,7 +566,7 @@ function showBirth() {
       <div class="chart">${FAMILY_TIERS.map(f => `<div class="${f.id === fam.id ? 'me' : ''}"><span>${Math.round(f.weight / tot * 100)}%</span><b style="height:${f.weight / 32 * 80}px"></b>${f.th}</div>`).join('')}</div>
       <div class="money-box"><span class="big">💰 ${fmt(s.money)}</span><span>เหรียญทองวิญญาณของครอบครัว · ดวงชะตา 🍀 ${s.luck}/100</span></div>
       <div class="btns"><button class="pbtn" id="ovGo">ต่อไป</button><button class="pbtn ghost" id="ovRe">ขอเกิดใหม่</button></div>
-    </div></div>`);
+    </div></div>`, true);
   drawScene($('ovScene'), { kind: CITY_PLACES.includes(s.place) ? 'city' : 'home', tod: 'dawn', place: s.place, seed: hash(s.id), family: true, hero: { age: 1, gender: s.gender, cloth: '#e8e4dc', rings: [] } });
   $('ovRe').onclick = showBirth;
   $('ovGo').onclick = () => { S = s; S.feed = []; S.feedD = {}; startLife(S); closeOverlay(); save(); startGame(); };

@@ -16,16 +16,7 @@ const inSchool = s => ['school', 'academy'].includes(pathOf(s).group) && s.path 
 const cultReq = s => isCultivator(s) ? null : 'ต้องมีพลังวิญญาณ';
 const cultLock = s => cultReq(s) || (isBottleneck(s) ? 'ติดคอขวด ต้องล่าวงแหวนก่อน' : null);
 
-// ---------- วัยเด็กเล็ก ----------
-A({ id:'play', cat:'body', icon:'🪁', t:'วิ่งเล่นกับเด็กในหมู่บ้าน', d:'ร่างกายคล่องแคล่ว อารมณ์ดี', tend:'body', rep:2, when: s => s.age < 6, fx: () => [['agi', 2], ['mood', 4]], run: s => { add(s, 'agi', R.i(1, 2)); add(s, 'mood', R.i(3, 6)); } });
-A({ id:'chores', cat:'money', icon:'🧺', t:'ช่วยพ่อแม่ทำงานบ้าน', d:'พละกำลังเพิ่ม พ่อแม่ชื่นใจ', tend:'social', route:{ common:0.3 }, when: s => s.age < 6 && s.familyTier <= 3, fx: () => [['str', 2], ['mood', 2]], run: s => { add(s, 'str', R.i(1, 2)); add(s, 'mood', 2); } });
-A({ id:'kidlesson', cat:'study', icon:'🎐', t:'เรียนดนตรี อักษร และขี่ม้า', d:'บทเรียนของลูกผู้ดี', tend:'study', when: s => s.age >= 3 && s.age < 6 && s.familyTier >= 4, fx: () => [['wis', 2], ['spi', 1]], run: s => { add(s, 'wis', R.i(1, 3)); add(s, 'spi', 1); } });
-A({ id:'kidstory', cat:'study', icon:'📜', t:'ฟังปู่ย่าเล่านิทานวิญญาจารย์', d:'ปัญญาเพิ่ม', tend:'study', when: s => s.age < 6, fx: () => [['wis', 2]], run: s => add(s, 'wis', R.i(1, 3)) });
-A({ id:'kidnap', cat:'rest', icon:'😴', t:'นอนกลางวัน', d:'ฟื้นฟูร่างกาย', tend:'rest', when: s => s.age < 6, fx: () => [['hp', 15]], run: s => add(s, 'hp', 15) });
-A({ id:'kidwander', cat:'adv', icon:'🐞', t:'แอบออกไปสำรวจท้ายหมู่บ้าน', d:'โชคดีอาจเจอของดี', tend:'adv', when: s => s.age >= 3 && s.age < 6, fx: () => [['luck', 2]], danger: () => 0.01, run: s => {
-  if (R.chance(0.1)) { log(s, 'คุณตกคูน้ำ ขาเจ็บไปหลายวัน', 'bad'); hurt(s, R.i(5, 15), 'อุบัติเหตุในวัยเด็ก'); }
-  else if (R.chance(0.3)) { add(s, 'money', 1); log(s, 'คุณเจอเหรียญทองตกอยู่ข้างทาง!', 'good'); } else add(s, 'luck', 1);
-} });
+// ---------- วัยเด็กเล็ก: ดู childhood.js ----------
 
 // ---------- บำเพ็ญ (หมวด cult: เลือกวิธีที่ดีที่สุดที่มี) ----------
 A({ id:'xuantian', group:'cult', cat:'cult', icon:'☯️', t:'บำเพ็ญด้วยวิชาเสวียนเทียน (玄天功)', d:'วิชาสำนักถัง บำเพ็ญได้ดีกว่าปกติ', tend:'cult', route:{ limit:0.3 }, rep:2, when: s => s.age >= 6 && s.arts && s.arts.xuantian, lock: cultLock, fx: s => [['soul', growthPreview(s, 0.45)], ['spi', 1]], run: s => { cultivate(s, 0.45, true); add(s, 'spi', R.i(0, 1)); } });

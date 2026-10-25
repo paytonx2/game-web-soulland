@@ -63,7 +63,7 @@ function combatPower(s) {
 function artCombat(s) { return Object.keys(s.arts || {}).reduce((a, k) => a + (TANG_ARTS[k].combat || 0), 0); }
 function weaponCombat(s) { return (s.weapons || []).reduce((a, id) => a + HIDDEN_WEAPONS.find(w => w.id === id).combat, 0); }
 const worldYear = s => s.birthYear + s.age;
-const apMax = s => s.age < 6 ? 2 : s.age < 12 ? 3 : s.age < 60 ? 4 : 3;
+const apMax = s => s.age < 3 ? 2 : s.age < 6 ? 3 : s.age < 12 ? 3 : s.age < 60 ? 4 : 3;
 function lifespan(s) {
   const L = lvl(s);
   return s.lifeBase + (isCultivator(s) ? L * 0.45 : 0) + (L >= 71 ? 10 : 0) + (L >= 91 ? 20 : 0);
@@ -592,6 +592,7 @@ function endYear(s) {
   if (ce.length) s.queue.push(R.pick(ce).id);
   routeYear(s);
   questYear(s);
+  if (s.age >= 1 && s.age <= 5) childYear(s);
   const pool = storyPool(s);
   if (pool.length && R.chance(s.age < 6 ? 0.7 : 0.75)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
   if (pool.length > 1 && s.tend.adv > 3 && R.chance(0.3)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);

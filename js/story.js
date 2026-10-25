@@ -109,7 +109,7 @@ async function lifeCardCanvas(s) {
   // ผ่านแรก: วัดความสูง
   const blocks = [];
   c.font = '400 30px Sarabun, sans-serif';
-  for (const p of st.paragraphs) blocks.push({ lines: wrapLines(c, p, inner), font: '400 30px Sarabun, sans-serif', lh: 46, color: '#f3ead6', gap: 18 });
+  for (const p of st.paragraphs) blocks.push({ lines: wrapLines(c, p, inner), font: '400 30px Sarabun, sans-serif', lh: 46, color: '#ece6da', gap: 18 });
   c.font = '400 26px Sarabun, sans-serif';
   const hlLines = st.highlights.map(h => wrapLines(c, `อายุ ${h.age} · ${h.t}`, inner - 30));
   const sceneH = Math.round(inner * 9 / 16);
@@ -120,23 +120,23 @@ async function lifeCardCanvas(s) {
 
   // พื้นหลัง
   const g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1f180c'); g.addColorStop(0.5, '#0d0a06'); g.addColorStop(1, '#050403');
+  g.addColorStop(0, '#24221e'); g.addColorStop(0.5, '#141311'); g.addColorStop(1, '#0b0b0a');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   const rg = c.createRadialGradient(W * 0.2, 0, 10, W * 0.2, 0, 700);
-  rg.addColorStop(0, 'rgba(212,169,72,0.35)'); rg.addColorStop(1, 'rgba(212,169,72,0)');
+  rg.addColorStop(0, 'rgba(201,164,92,0.35)'); rg.addColorStop(1, 'rgba(201,164,92,0)');
   c.fillStyle = rg; c.fillRect(0, 0, W, 700);
   c.strokeStyle = 'rgba(247,201,94,0.55)'; c.lineWidth = 4; c.strokeRect(24, 24, W - 48, H - 48);
 
   let y = pad + 20;
   c.textBaseline = 'top';
   c.fillStyle = '#e2c27a'; c.font = '500 26px Mitr, sans-serif'; c.fillText('เกิดในโลกวิญญาจารย์ · 斗罗大陆', pad, y); y += 50;
-  c.fillStyle = '#ffe3a0'; c.font = '600 64px Mitr, sans-serif'; c.fillText(s.name, pad, y);
+  c.fillStyle = '#eadbb4'; c.font = '600 64px Mitr, sans-serif'; c.fillText(s.name, pad, y);
   c.font = '600 64px Mitr, sans-serif'; const nw = c.measureText(s.name).width;
-  c.fillStyle = '#b3a483'; c.font = '600 40px "Noto Serif SC", serif'; c.fillText(s.zh, pad + nw + 24, y + 16);
+  c.fillStyle = '#aaa397'; c.font = '600 40px "Noto Serif SC", serif'; c.fillText(s.zh, pad + nw + 24, y + 16);
   y += 86;
-  c.fillStyle = '#e8b84a'; c.font = '500 30px Mitr, sans-serif';
+  c.fillStyle = '#cfae68'; c.font = '500 30px Mitr, sans-serif';
   c.fillText(`${st.verdict}${s.title ? ' · ' + s.title : ''}`, pad, y); y += 46;
-  c.fillStyle = '#b3a483'; c.font = '400 26px Sarabun, sans-serif';
+  c.fillStyle = '#aaa397'; c.font = '400 26px Sarabun, sans-serif';
   c.fillText(`อายุ ${s.age} ปี · ปีทวีป ${WORLD_EPOCH + s.birthYear}–${WORLD_EPOCH + worldYear(s)} · คะแนนชีวิต ${fmt(st.score)}`, pad, y); y += 50;
 
   // ภาพฉาก
@@ -144,7 +144,7 @@ async function lifeCardCanvas(s) {
   drawScene(sc, sceneSpec(s));
   c.imageSmoothingEnabled = false;
   c.drawImage(sc, pad, y, inner, sceneH);
-  c.strokeStyle = '#e8b84a'; c.lineWidth = 3; c.strokeRect(pad, y, inner, sceneH);
+  c.strokeStyle = '#cfae68'; c.lineWidth = 3; c.strokeRect(pad, y, inner, sceneH);
   y += sceneH + 26;
 
   // แถบค่าหลัก
@@ -152,8 +152,8 @@ async function lifeCardCanvas(s) {
   c.font = '500 26px Mitr, sans-serif'; let x = pad;
   for (const t of stats) {
     const w = c.measureText(t).width + 28;
-    c.fillStyle = 'rgba(212,169,72,0.18)'; roundRect(c, x, y, w, 44, 12); c.fill();
-    c.fillStyle = '#f3ead6'; c.fillText(t, x + 14, y + 8); x += w + 12;
+    c.fillStyle = 'rgba(201,164,92,0.18)'; roundRect(c, x, y, w, 44, 12); c.fill();
+    c.fillStyle = '#ece6da'; c.fillText(t, x + 14, y + 8); x += w + 12;
   }
   // จุดวงแหวน
   y += 64;
@@ -168,14 +168,14 @@ async function lifeCardCanvas(s) {
   }
   // ช่วงเวลาสำคัญ
   if (hlLines.length) {
-    y += 10; c.fillStyle = '#ffe3a0'; c.font = '500 32px Mitr, sans-serif'; c.fillText('✨ ช่วงเวลาสำคัญ', pad, y); y += 54;
+    y += 10; c.fillStyle = '#eadbb4'; c.font = '500 32px Mitr, sans-serif'; c.fillText('✨ ช่วงเวลาสำคัญ', pad, y); y += 54;
     c.font = '400 26px Sarabun, sans-serif';
-    for (const ls of hlLines) { c.fillStyle = '#e8b84a'; c.fillText('•', pad, y); c.fillStyle = '#e8dcc0'; for (const l of ls) { c.fillText(l, pad + 30, y); y += 38; } y += 8; }
+    for (const ls of hlLines) { c.fillStyle = '#cfae68'; c.fillText('•', pad, y); c.fillStyle = '#e8dcc0'; for (const l of ls) { c.fillText(l, pad + 30, y); y += 38; } y += 8; }
   }
   // แผนที่ชีวิต
   y += 24; c.fillStyle = '#e2c27a'; c.font = '500 26px Mitr, sans-serif'; c.fillText('แผนที่ชีวิต · 1 ช่อง = 1 ปี', pad, y); y += 44;
   const tone = {}; s.log.forEach(yy => tone[yy.age] = yearTone(yy));
-  const COLS = { good: '#2fb47c', bad: '#c9465f', gold: '#e8b84a', calm: '#4d402a', death: '#000000' };
+  const COLS = { good: '#2fb47c', bad: '#c9465f', gold: '#cfae68', calm: '#4d402a', death: '#000000' };
   const cell = inner / 20;
   for (let i = 0; i < 100; i++) {
     c.fillStyle = COLS[tone[i]] || 'rgba(255,255,255,0.06)';
@@ -183,7 +183,7 @@ async function lifeCardCanvas(s) {
     if (tone[i] === 'death') { c.strokeStyle = '#ff5f7e'; c.lineWidth = 2; c.stroke(); }
   }
   y += cell * 5 + 30;
-  c.fillStyle = '#7a6c50'; c.font = '400 22px Sarabun, sans-serif';
+  c.fillStyle = '#716b61'; c.font = '400 22px Sarabun, sans-serif';
   c.fillText('สร้างจากเกม "เกิดในโลกวิญญาจารย์" — เกมจำลองชีวิตตามนิยายตำนานจอมยุทธ์ภูตถังซาน', pad, y);
   // ตัดภาพให้พอดีเนื้อหา
   const out = document.createElement('canvas'); out.width = W; out.height = Math.min(H, y + 70);
