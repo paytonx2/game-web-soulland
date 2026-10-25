@@ -168,6 +168,8 @@ function doAct(s, id, auto = false) {
   if (FLAV[a.id]) log(s, R.pick(FLAV[a.id])(s), 'flav');
   const seg0 = segStart(s);
   a.run(s);
+  // ผจญภัยแล้วอาจพบสมุนไพร
+  if (s.alive && a.cat === 'adv' && !s.battle && R.chance(0.07)) s.queue.push('h_find');
   if (s.alive && !s.battle) { questHook(s, 'act', a); segEnd(s, seg0); }
   presentNext(s);
 }
