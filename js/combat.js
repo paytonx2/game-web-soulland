@@ -118,6 +118,24 @@ function battleAction(s, action) {
   b.turn++;
 }
 
+// ประสบการณ์การต่อสู้: ยิ่งสู้มาก พลังวิญญาณยิ่งเพิ่ม — ชนะได้มาก แพ้ก็ได้บทเรียน
+// ศัตรูระดับสูงกว่าและการต่อสู้ที่อันตรายกว่าให้มากกว่า · คนที่ผ่านศึกมามากจะเรียนรู้จากแต่ละศึกได้มากขึ้น
+// สู้ถี่ ๆ ในปีเดียวกันได้น้อยลง (ร่างกายต้องใช้เวลาซึมซับ)
+function battleExp(s, b, won) {
+  s.fights = (s.fights || 0) + 1; if (won) s.fightWins = (s.fightWins || 0) + 1;
+  if (!isCultivator(s)) return;
+  const y = s.yearFights = (s.yearFights || 0) + 1;
+  const kind = { spar: 1, arena: 1.3, deathmatch: 1.8 }[b.kind] || 1;
+  const diff = clamp((b.foe.level - lvl(s)) * 0.08, -0.2, 0.8);
+  const vet = 1 + Math.min(0.6, s.fights * 0.012);
+  const g = Math.max(0.1, (won ? 0.5 + diff : 0.2 + Math.max(0, diff) * 0.5) * kind * vet / (1 + (y - 1) * 0.35));
+  const before = s.level;
+  s.level = Math.min(ringCap(s), s.level + g);
+  if (s._delta && s.level !== before) s._delta.push(['soul', s.level - before]);
+  if (s.level > before) log(s, `⚔️ ประสบการณ์การต่อสู้ครั้งที่ ${s.fights}: ${won ? 'ชัยชนะ' : 'ความพ่ายแพ้'}${diff > 0.1 ? 'กับศัตรูที่เหนือกว่า' : ''}${b.kind !== 'spar' ? `ใน${BATTLE_KINDS[b.kind].th}` : ''} ทำให้พลังวิญญาณ +${(s.level - before).toFixed(1)}${y > 1 ? ` (สู้ครั้งที่ ${y} ของปี ได้น้อยลง)` : ''}`, 'good');
+  else if (isBottleneck(s)) log(s, '⛓️ ประสบการณ์การต่อสู้สะสมไว้ แต่พลังติดคอขวด ต้องล่าวงแหวนก่อน', 'muted');
+}
+
 function finishBattle(s) {
   const b = s.battle;
   if (!b || !b.over) return;
@@ -131,7 +149,6 @@ function finishBattle(s) {
   const label = b.eid ? b.title : K.th;
   if (won) {
     log(s, `🏆 ชนะ${label} — เอาชนะ ${b.foe.name} (ระดับ ${b.foe.level})`, 'good');
-    if (isCultivator(s)) s.level = Math.min(ringCap(s), s.level + 0.3 + Math.max(0, b.foe.level - lvl(s)) * 0.1);
     if (!b.eid) {
       if (b.kind === 'spar') add(s, 'fame', 2);
       if (b.kind === 'arena') { add(s, 'money', Math.round((5 + b.foe.level * 1.5) * R.f(0.8, 1.4))); add(s, 'fame', R.i(3, 6)); }
@@ -149,6 +166,7 @@ function finishBattle(s) {
       if (!b.eid) add(s, 'fame', -1);
     }
   }
+  if (s.alive) battleExp(s, b, won);
   if (s.alive && b.eid && EVENTS[b.eid].battleEnd) EVENTS[b.eid].battleEnd(s, won);
   if (s.alive && won) questHook(s, 'battle', b.eid || b.kind);
   segEnd(s, seg0);

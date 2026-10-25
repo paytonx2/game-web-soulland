@@ -320,6 +320,7 @@ function cultUnit(s) {
   if (s.flags.rivalry && !s.flags.rivalDone) mult *= 1.05;
   if (s.flags.mottoPower) mult *= 1.04;
   if (s.flags.secretManual) mult *= 1.05;
+  mult *= 1 + Math.min(0.15, (s.fights || 0) * 0.004); // ร่างที่ผ่านศึกมามากบำเพ็ญได้ไวขึ้น
   mult *= s.souls.length > 1 ? 1.12 : 1;
   mult *= 1 + disMod(s, 'cult');
   mult *= s.mood < 25 ? 0.8 : 1;
@@ -589,7 +590,7 @@ function endYear(s) {
   for (let i = 0; i < n && s.alive; i++) yearTick(s);
   s.boost = 1;
   if (!s.alive) return;
-  s.ap = apMax(s); s.done = {}; s.yearHunt = false; s.yearCult = 0;
+  s.ap = apMax(s); s.done = {}; s.yearHunt = false; s.yearCult = 0; s.yearFights = 0;
   const cn = canonNews(s); if (cn) s.news = cn;
   const wy = worldYear(s);
   const ce = Object.values(EVENTS).filter(ev => ev.canon && !s.seen[ev.id] && wy >= ev.wy[0] && wy <= ev.wy[1] && (!ev.age || (s.age >= ev.age[0] && s.age <= ev.age[1])) && (!ev.cond || ev.cond(s)));

@@ -171,7 +171,7 @@ function renderLeft() {
       ${row('wis', 'ปัญญา', s.wis, s.wis, describe('wis', s))}
       ${row('luck', 'โชค', s.luck, s.luck, describe('luck', s))}
       ${row('fame', 'ชื่อเสียง', fmt(s.fame), Math.min(100, s.fame / 3), describe('fame', s))}
-      <div class="st"><span class="ic">⚔️</span><span class="lb">พลังต่อสู้</span><span class="vl">${fmt(combatPower(s))}</span></div>
+      <div class="st"><span class="ic">⚔️</span><span class="lb">พลังต่อสู้</span><span class="vl">${fmt(combatPower(s))}</span><span class="ds">${s.fights ? `ผ่านศึก ${s.fights} ครั้ง (ชนะ ${s.fightWins || 0}) · บำเพ็ญ +${Math.round(Math.min(0.15, s.fights * 0.004) * 100)}%` : 'ยังไม่เคยต่อสู้'}</span></div>
       <div class="st"><span class="ic">⏳</span><span class="lb">อายุขัยโดยประมาณ</span><span class="vl">~${Math.round(lifespan(s))}</span></div>
     </div></section>
     <section class="lsec"><h4>🐉 วิญญาณยุทธ์ & วงแหวน</h4>${soul}</section>
@@ -597,7 +597,7 @@ function showLanding() {
   ];
   overlay(`<div class="land">
     <section class="hero">
-      <canvas id="ovScene" width="320" height="180"></canvas><span class="seal">斗罗大陆</span>
+      <canvas id="ovScene" width="320" height="180"></canvas><span class="seal">斗罗大陆</span><button class="tbtn bitbtn" id="ovBit" title="สไตล์อีโมจิพิกเซล"></button>
       <div class="hero-in">
         <div class="emblem" aria-hidden="true">${['#f5f5f5', '#f5c518', '#9b4dff', '#1b1b1b', '#e0263a', '#ffb02e'].map((c, i) => `<i style="--c:${c};--i:${i}"></i>`).join('')}<span>魂</span></div>
         <div class="kicker">斗罗大陆 · DOULUO LIFE SIMULATOR</div>
@@ -615,6 +615,8 @@ function showLanding() {
   </div>`, true);
   drawScene($('ovScene'), { kind: 'city', tod: 'dusk', place: 'tiandou', seed: 7, hero: { age: 20, gender: 'M', cloth: '#3a2a12', rings: ['#f5c518', '#9b4dff', '#9b4dff', '#1b1b1b'], aura: '#ffd36a' }, foe: { age: 20, gender: 'F', cloth: '#5a1a1a', rings: ['#f5c518', '#f5c518', '#9b4dff'], aura: '#ff9d4a' } });
   $('ovBorn').onclick = showBirth;
+  $('ovBit').onclick = () => { PIXMOJI.next(); bitLabel(); };
+  if (typeof bitLabel === 'function') bitLabel();
   if (canContinue) $('ovCont').onclick = () => { S = sv; closeOverlay(); startGame(); };
 }
 
@@ -781,6 +783,9 @@ function setTab(t) {
 $('mtabs').onclick = e => { const b = e.target.closest('.mtab'); if (b) setTab(b.dataset.t); };
 
 $('btnLog').onclick = showLog;
+const bitLabel = () => document.querySelectorAll('.bitbtn, #btnBit').forEach(b => b.textContent = '🎮 ' + PIXMOJI.label());
+$('btnBit').onclick = () => { PIXMOJI.next(); bitLabel(); };
+bitLabel();
 $('btnPlay').onclick = () => { playing = !playing; renderTime(); };
 document.querySelectorAll('.spd').forEach(b => b.onclick = () => { speed = +b.dataset.spd; playing = true; renderTime(); });
 setInterval(tick, 250);
