@@ -135,8 +135,6 @@ const CARD_SIZES = {
   square: { w: 1080, h: 1080, th: 'จัตุรัส', ratio: '1:1' },
   wide: { w: 1920, h: 1080, th: 'แนวนอน', ratio: '16:9' },
 };
-let cardBgP = null;
-const cardBg = () => cardBgP || (cardBgP = new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = 'assets/bg-ink.webp'; }));
 // ตัดบรรทัดตามความกว้าง แล้วจำกัดจำนวนบรรทัด (ใส่ … ท้ายบรรทัดสุดท้าย)
 function clampLines(c, text, maxW, n) {
   const ls = wrapLines(c, text, maxW);
@@ -287,6 +285,45 @@ const CardPart = {
     return y + Math.ceil(100 / perRow) * cell + 10;
   },
 };
+// พื้นหลังการ์ด (วาดเอง ไม่ใช้รูป): หมึกจีนไล่เฉด · ภูเขาหลายชั้น · วงแหวนวิญญาณจาง ๆ · เนื้อกระดาษ
+function drawCardBg(c, W, H) {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1d1b17'); g.addColorStop(0.45, '#121110'); g.addColorStop(1, '#0a0a09');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // แสงทองจาง ๆ มุมบน
+  g = c.createRadialGradient(W * 0.78, H * 0.08, 10, W * 0.78, H * 0.08, Math.max(W, H) * 0.6);
+  g.addColorStop(0, 'rgba(217,184,108,0.16)'); g.addColorStop(1, 'rgba(217,184,108,0)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // วงแหวนวิญญาณซ้อนกันจาง ๆ (ลายน้ำ)
+  const cx = W * 0.8, cy = Math.min(H * 0.17, 330), R0 = Math.min(W, H) * 0.34;
+  ['#f5f5f5', '#f5c518', '#9b4dff', '#9b4dff', '#555', '#e0263a'].forEach((col, i) => {
+    c.beginPath(); c.ellipse(cx, cy, R0 - i * R0 * 0.13, (R0 - i * R0 * 0.13) * 0.92, 0, 0, Math.PI * 2);
+    c.strokeStyle = col; c.globalAlpha = 0.07; c.lineWidth = 6; c.stroke();
+  });
+  c.globalAlpha = 1;
+  // ภูเขาหมึกสามชั้นที่ขอบล่าง
+  const layers = [[0.82, 0.05, 'rgba(120,110,95,0.10)'], [0.88, 0.04, 'rgba(90,82,70,0.14)'], [0.93, 0.03, 'rgba(50,46,40,0.35)']];
+  for (const [base, amp, col] of layers) {
+    c.beginPath(); c.moveTo(0, H);
+    const ph = rnd() * 6;
+    for (let x = 0; x <= W; x += 8) {
+      const y = H * base - (Math.sin(x / W * 5 + ph) * 0.6 + Math.sin(x / W * 13 + ph * 2) * 0.3 + Math.sin(x / W * 29 + ph) * 0.1) * H * amp - H * amp;
+      c.lineTo(x, y);
+    }
+    c.lineTo(W, H); c.closePath(); c.fillStyle = col; c.fill();
+  }
+  // ภูเขาจางมุมบนซ้าย (ลายพู่กัน)
+  c.beginPath(); c.moveTo(0, H * 0.3);
+  for (let x = 0; x <= W * 0.55; x += 8) c.lineTo(x, H * 0.3 - Math.max(0, Math.sin(x / (W * 0.55) * Math.PI)) * H * 0.12 - Math.sin(x / 40) * 6);
+  c.lineTo(W * 0.55, H * 0.3); c.closePath(); c.fillStyle = 'rgba(217,184,108,0.035)'; c.fill();
+  // เนื้อกระดาษ
+  for (let i = 0; i < (W * H) / 900; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.12)'; c.fillRect(rnd() * W, rnd() * H, 2, 2); }
+  // เงาขอบ
+  g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
 async function lifeCardCanvas(s, size = 'story') {
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   const Z = CARD_SIZES[size] || CARD_SIZES.story, W = Z.w, H = Z.h, st = lifeStory(s);
@@ -294,16 +331,7 @@ async function lifeCardCanvas(s, size = 'story') {
   const c = cv.getContext('2d'); c.textBaseline = 'top';
   // พื้นหลัง: ภาพหมึกจีน + เงาไล่ระดับให้อ่านง่าย
   c.fillStyle = '#0b0b0a'; c.fillRect(0, 0, W, H);
-  const bg = await cardBg(), tall = H > W;
-  if (bg) {
-    const sc = tall ? Math.max(W / bg.width, (H * 0.42) / bg.height) : Math.max(W / bg.width, H / bg.height);
-    const bw = bg.width * sc, bh = bg.height * sc;
-    c.globalAlpha = 0.9; c.drawImage(bg, tall ? (W - bw) / 2 + 60 : W - bw, tall ? -40 : (H - bh) / 2, bw, bh); c.globalAlpha = 1;
-  }
-  let g;
-  if (tall) { g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(11,11,10,0.25)'); g.addColorStop(0.12, 'rgba(11,11,10,0.5)'); g.addColorStop(H > 1500 ? 0.36 : 0.42, 'rgba(11,11,10,0.94)'); g.addColorStop(1, '#0b0b0a'); }
-  else { g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(11,11,10,0.96)'); g.addColorStop(0.55, 'rgba(11,11,10,0.9)'); g.addColorStop(1, 'rgba(11,11,10,0.7)'); }
-  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  drawCardBg(c, W, H);
   // กรอบทอง + ตราประทับ
   c.strokeStyle = 'rgba(217,184,108,0.75)'; c.lineWidth = 3; c.strokeRect(28, 28, W - 56, H - 56);
   c.strokeStyle = 'rgba(217,184,108,0.3)'; c.lineWidth = 1.5; c.strokeRect(40, 40, W - 80, H - 80);

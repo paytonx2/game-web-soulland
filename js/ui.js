@@ -681,7 +681,7 @@ function showBirth() {
     <section class="bx-col">
       ${tierPerks(s)}
       <h3>👶 เด็กที่เกิดปีเดียวกันในทวีป</h3>
-      <div class="chart">${FAMILY_TIERS.map(f => `<div class="${f.id === fam.id ? 'me' : ''}"><span>${Math.round(f.weight / tot * 100)}%</span><b style="height:${f.weight / 32 * 80}px"></b>${f.th}</div>`).join('')}</div>
+      <div class="chart">${FAMILY_TIERS.map(f => `<div class="col ${f.id === fam.id ? 'me' : ''}"><span class="pc">${Math.round(f.weight / tot * 100)}%</span><span class="bar"><b style="height:${Math.max(6, f.weight / Math.max(...FAMILY_TIERS.map(x => x.weight)) * 100)}%"></b></span><span class="lb" title="${f.th}">${['ยากจน', 'ชาวบ้าน', 'พ่อค้า', 'ขุนนาง', 'วิญญา<br>จารย์', 'ราชวงศ์'][f.id - 1]}</span></div>`).join('')}</div>
       <div class="note bx-hint">วิญญาณยุทธ์และพลังวิญญาณแต่กำเนิดจะถูกเปิดเผยในพิธีปลุกเมื่ออายุ 6 ขวบ · ทุกตัวเลขบนหน้านี้คือโอกาส ไม่ใช่โชคชะตาที่ตายตัว</div>
     </section>
   </div>`, true);
