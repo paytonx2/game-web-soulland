@@ -34,7 +34,7 @@ function combatant(o) {
 
 function startBattle(s, kind, opts = {}) {
   const L = lvl(s);
-  const DIFF = { spar: [-3, 3, 1.06], arena: [-2, 4, 1.1], deathmatch: [-2, 4, 1.1], beast: [0, 0, 1.1] }[kind] || [-3, 3, 1.08];
+  const DIFF = { spar: [-3, 3, 1.04], arena: [-3, 3, 1.08], deathmatch: [-3, 3, 1.08], beast: [0, 0, 1.06] }[kind] || [-3, 3, 1.08];
   const fl = clamp(L + (opts.lvlOff ?? R.i(DIFF[0], DIFF[1])), 1, 99);
   // วิญญาณยุทธ์ของศัตรู: ระดับใกล้เคียงของผู้เล่น (±1) — ไม่ได้เปรียบเสียเปรียบเกินไป
   const myT = s.awakened ? SOUL_BY_ID[s.souls[0]].tier : 2, ft = clamp(myT + R.i(-1, 1) + (kind === 'deathmatch' && R.chance(0.3) ? 1 : 0), Math.max(1, opts.tierMin || 1), 5);
@@ -68,7 +68,8 @@ const side = (b, x) => x === b.me ? 'me' : 'foe';
 function hit(b, att, def, raw, label) {
   const dodge = clamp(5 + (def.agi - att.agi) * 0.25, 3, 35) / 100;
   if (Math.random() < dodge) { b.log.push({ t: `${def.name} หลบ${label}ได้!`, c: 'muted' }); b.anim.push({ a: side(b, att), t: 'miss', col: b._col, role: b._col ? b._role : null }); return 0; }
-  let dmg = raw * R.f(0.85, 1.15);
+  // ส่วนต่างระดับ: ระดับสูงกว่าตีแรงขึ้น ระดับต่ำกว่าตีเบาลง (ต่างกัน 1 ระดับ = ±2%)
+  let dmg = raw * R.f(0.85, 1.15) * clamp(1 + (att.level - def.level) * 0.02, 0.6, 1.4);
   const crit = Math.random() < 0.08 + att.luck / 2000;
   if (crit) dmg *= 1.6;
   if (def.defending) dmg *= 0.4;

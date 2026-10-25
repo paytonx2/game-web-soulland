@@ -170,3 +170,78 @@ function finishJourney(s) {
   }
   segEnd(s, seg0);
 }
+
+// ---------- กิจกรรมประจำปีตามช่วงระดับ ----------
+// ระดับสูงแล้วไม่ทำงานรับจ้าง/ฟังบรรยายเหมือนเด็กฝึกหัด — แทนด้วยกิจกรรมที่เหมาะกับฐานะ
+const capAct = (id, f) => { const a = ACTS.find(x => x.id === id); if (a) { const w = a.when; a.when = s => w(s) && f(s); } };
+const lowLv = n => s => !isCultivator(s) || lvl(s) < n;
+capAct('askmaster', s => lvl(s) < 60);
+capAct('lecture', lowLv(50)); capAct('tutor', lowLv(50)); capAct('library', lowLv(70));
+capAct('trainbody', lowLv(70));
+capAct('oddjob', lowLv(40)); capAct('mine', lowLv(40)); capAct('forage', lowLv(40)); capAct('teachkids', lowLv(60));
+capAct('stardou', lowLv(70)); capAct('sunset', lowLv(80)); capAct('guild', lowLv(85));
+{ const f = ACTS.find(x => x.id === 'fusion'); if (f) f.d = 'ฝึกกับคู่หูที่ใจตรงกัน (เพื่อนร่วมทีม เพื่อนสนิท หรือคนรัก) · ระดับ 30+'; }
+const hiLv = n => s => isCultivator(s) && lvl(s) >= n;
+A({ id: 'selfstudy', group: 'study', cat: 'study', icon: '📜', t: 'ค้นคว้าทฤษฎีวิญญาณยุทธ์ด้วยตัวเอง', d: 'ระดับนี้ไม่มีใครสอนคุณได้แล้ว — ต้องหาคำตอบเอง', tend: 'study', prefer: s => hiLv(60)(s) && lvl(s) < 80, when: s => hiLv(60)(s) || (isCultivator(s) && !s.mentor && lvl(s) >= 40),
+  fx: () => [['wis', 3], ['spi', 1]], run: s => { add(s, 'wis', R.i(2, 4)); add(s, 'spi', 1); if (R.chance(0.15)) { cultivate(s, 0.4); log(s, 'คุณค้นพบความเข้าใจใหม่เกี่ยวกับวิญญาณยุทธ์ของตัวเอง', 'good'); } } });
+A({ id: 'writebook', group: 'study', cat: 'study', icon: '🖋️', t: 'เขียนตำราถ่ายทอดประสบการณ์', d: 'ตำราของพรหมยุทธ์ คนทั้งทวีปอยากอ่าน', tend: 'study', prefer: hiLv(80), when: hiLv(80),
+  fx: () => [['fame', 6], ['wis', 2]], run: s => { add(s, 'fame', R.i(4, 8)); add(s, 'wis', 2); add(s, 'money', R.i(30, 80)); } });
+A({ id: 'peaktrain', group: 'body', cat: 'body', icon: '🏔️', t: 'ฝึกร่างบนยอดเขาหิมะนิรันดร์', d: 'ความหนาวที่ฆ่าคนธรรมดาได้ในพริบตา ใช้ขัดเกลาร่างระดับสูง', tend: 'body', prefer: hiLv(70), when: hiLv(70), danger: () => 0.004,
+  fx: () => [['str', 2], ['agi', 2], ['hp', -10]], run: s => { add(s, 'str', R.i(1, 3)); add(s, 'agi', R.i(1, 3)); add(s, 'hp', -10); } });
+A({ id: 'honored', group: 'money', cat: 'money', icon: '🏯', t: 'เป็นแขกผู้มีเกียรติของตระกูลใหญ่', d: 'ตระกูลใหญ่จ่ายค่าตอบแทนมหาศาลเพื่อให้คุณอยู่เป็นเกียรติ', tend: 'money', prefer: hiLv(60), when: hiLv(60),
+  fx: s => [['money', 80 + lvl(s) * 3], ['fame', 2]], run: s => { add(s, 'money', Math.round((80 + lvl(s) * 3) * R.f(0.8, 1.2))); add(s, 'fame', 2); } });
+A({ id: 'patrol', group: 'adv', cat: 'adv', icon: '🌲', t: 'ลาดตระเวนใจกลางป่าดาวซิงโต่ว', d: 'เขตที่สัตว์วิญญาณหมื่นปีครองถิ่น อาจได้กระดูกวิญญาณ', tend: 'adv', prefer: hiLv(70), when: hiLv(70), danger: () => 0.01,
+  fx: () => [['fame', 3], ['', '🦴 ?']], run: s => { add(s, 'fame', R.i(2, 5)); s.fights = (s.fights || 0) + 1; if (R.chance(0.06)) giveBone(s, R.i(10000, 80000)); if (R.chance(0.01)) { log(s, 'สัตว์วิญญาณหมื่นปีลอบโจมตีจากเงามืด', 'bad'); hurt(s, R.i(20, 50), 'ถูกสัตว์วิญญาณหมื่นปีสังหารในป่าลึก'); } } });
+A({ id: 'audience', group: 'social', cat: 'social', icon: '🙇', t: 'เปิดให้คนรุ่นหลังเข้าพบขอคำชี้แนะ', d: 'วิญญาจารย์รุ่นหลังต่อแถวยาวเพื่อขอคำชี้แนะจากคุณ', tend: 'social', prefer: hiLv(80), when: hiLv(80),
+  fx: () => [['fame', 5], ['mood', 4]], run: s => { add(s, 'fame', R.i(3, 7)); add(s, 'mood', 4); if (!s.disciple && R.chance(0.1)) { s.disciple = genName(R.chance(0.5) ? 'M' : 'F').th; log(s, `${s.disciple}ขอเป็นศิษย์ของคุณ`, 'good'); } } });
+Object.assign(FLAV, {
+  selfstudy: [s => 'คุณเปิดบันทึกเก่าของตัวเอง แล้วเขียนทับด้วยความเข้าใจใหม่ทั้งหน้า'],
+  writebook: [s => 'หมึกยังไม่ทันแห้ง ศิษย์ในสำนักก็แย่งกันคัดลอกแล้ว'],
+  peaktrain: [s => 'หิมะจับตัวเป็นน้ำแข็งบนขนตา คุณยืนนิ่งท่ามกลางพายุทั้งคืน'],
+  honored: [s => 'เจ้าตระกูลคำนับคุณต่อหน้าแขกทั้งงาน'],
+  patrol: [s => 'สัตว์วิญญาณหมื่นปีถอยหลบเมื่อได้กลิ่นพลังวิญญาณของคุณ'],
+  audience: [s => 'เด็กหนุ่มคนหนึ่งเดินทางมาสามเดือนเพื่อถามคำถามเดียว'],
+});
+
+// ---------- เส้นทางสังหารเทพ (ระดับ 99 ที่ไม่ได้รับเลือกจากเทพ) ----------
+// ท้าทายเทพเพื่อชิงบัลลังก์ — โอกาสชนะสูงสุดเพียง 30% · แพ้ส่วนใหญ่คือตาย
+function godslayOdds(s) {
+  const soul = SOUL_BY_ID[s.souls[0]];
+  const v = 0.04 + Math.min(0.08, (soul.tier - 1) * 0.02 + (soul.over || 0) * 0.02) + (s.souls.length > 1 ? 0.03 : 0)
+    + Math.min(0.06, s.bones.length * 0.015) + s.luck / 1000 + Math.min(0.04, (s.fights || 0) * 0.0005)
+    + Math.min(0.04, rp(s, 'limit') * 0.003) + (s.flags.godInspired ? 0.02 : 0) + (s.flags.killing ? 0.02 : 0);
+  return clamp(v, 0.03, 0.3);
+}
+const godslayTargets = s => [...GODS].sort((a, b) => godScore(s, b) - godScore(s, a)).slice(0, 3);
+A({ id: 'godslay', cat: 'fight', icon: '⚡', t: 'เดินบนเส้นทางสังหารเทพ', d: 'ไม่มีเทพองค์ใดเลือกคุณ — งั้นก็ชิงบัลลังก์มาด้วยมือตัวเอง', ap: 0, tend: 'fight', noAuto: true,
+  when: s => isCultivator(s) && lvl(s) >= 99 && !s.god && !s.ascended && !s.flags.godslayTried && !(s.quests || []).some(q => q.id === 'h_godslay'),
+  fx: s => [['', `โอกาสชนะ ~${Math.round(godslayOdds(s) * 100)}%`]], run: s => s.queue.unshift('gs_start') });
+E('gs_start', { forced: true, once: false, scene: 'temple', make: s => ({ title: '⚡ เส้นทางสังหารเทพ', ctx: { ids: godslayTargets(s).map(g => g.id) },
+  text: `คุณยืนอยู่ ณ จุดสูงสุดของมนุษย์ แต่ไม่มีเสียงใดจากสวรรค์เรียกหา ตำนานกล่าวว่าเคยมีมนุษย์ผู้หนึ่งฆ่าเทพแล้วนั่งบัลลังก์แทน — และอีกนับพันที่ตายโดยไม่เหลือแม้แต่เถ้าถ่าน<br><span class="qhint">⚠️ โอกาสชนะของคุณ ~${Math.round(godslayOdds(s) * 100)}% (สูงสุดได้แค่ 30%) · ต้องตามหาประตูอาณาจักรเทพก่อน · แพ้ = เกือบแน่นอนว่าตาย</span>`,
+  opts: [
+    ...godslayTargets(s).map((g, i) => o('g' + i, `ท้าทาย${g.th} (${g.zh})`, `ถ้าชนะ คุณจะได้นั่งบัลลังก์${g.th}`, { fx: [['', '⚡ ภารกิจสังหารเทพ']] })),
+    o('no', 'ยังไม่ใช่เวลา', 'กลับมาคิดใหม่ได้ภายหลัง', { fxa: [] }),
+  ] }),
+  pick: new Proxy({}, { get: (_, k) => (s, c) => { if (!/^g\d$/.test(k)) return; s.godslay = { god: c.ids[+k.slice(1)] }; startQuest(s, 'h_godslay'); } }) });
+Q('h_godslay', { icon: '⚡', th: 'ตามหาประตูสู่อาณาจักรเทพ', desc: 'ไขปริศนาประตูอาณาจักรเทพ เพื่อไปท้าทายเทพที่เลือกไว้', hint: 'เรียนรู้ / ผจญภัย 3 ครั้ง', age: [0, 999], lv: [99, 100], cond: () => false, steps: 3, p: 0.5, deadline: 8, track: { cats: ['study', 'adv'] }, finale: 'gs_final',
+  offer: '', reward: s => {}, fail: s => { s.flags.godslayTried = true; log(s, 'คุณตามหาประตูสู่อาณาจักรเทพไม่พบ — เส้นทางนี้ปิดลงสำหรับคุณ', 'bad'); } });
+E('gs_final', { forced: true, once: false, scene: 'temple', make: s => {
+  const g = GODS.find(x => x.id === (s.godslay || {}).god) || GODS[0], p = godslayOdds(s);
+  return { title: `⚡ บัลลังก์ของ${g.th}`, ctx: { g: g.id, p },
+    text: `ประตูอาณาจักรเทพเปิดออก <b>${g.th}</b> ลืมตาขึ้นบนบัลลังก์ "มนุษย์ผู้อวดดี เจ้าคิดจะชิงสิ่งที่เป็นของข้า?" พลังเทพกดทับจนกระดูกทั่วร่างลั่นเปรี๊ยะ`,
+    opts: [
+      o('fight', `ต่อสู้เพื่อชิงบัลลังก์${g.th}`, 'ชนะ = กลายเป็นเทพ · แพ้ = เกือบแน่นอนว่าตาย', { odds: p, danger: (1 - p) * 0.85, fx: [['', `⚡ เป็น${g.th}`]] }),
+      o('kneel', 'คุกเข่ายอมแพ้ก่อนเริ่ม', 'รอดชีวิต แต่บาดเจ็บสาหัส และหมดสิทธิ์เส้นทางนี้', { fxa: [['mood', -20]] }),
+    ] };
+}, pick: {
+  fight: (s, c) => {
+    const g = GODS.find(x => x.id === c.g); s.flags.godslayTried = true; endQuest(s, 'h_godslay');
+    if (R.chance(c.p)) {
+      s.level = 100; s.title = `ผู้สังหาร${g.th}`; add(s, 'fame', 500);
+      log(s, `⚡ <b>เป็นไปไม่ได้… แต่คุณทำได้!</b> ${g.th}สลายเป็นละอองแสง บัลลังก์เทพเป็นของคุณแล้ว`, 'gold');
+      s.alive = false; s.ascended = true; s.cause = `สังหาร${g.th}และชิงบัลลังก์เทพ`;
+    } else if (R.chance(0.85)) die(s, `ถูก${g.th}ลบล้างจากโลกในศึกชิงบัลลังก์เทพ`);
+    else { log(s, `${g.th}ปล่อยคุณรอดชีวิตอย่างดูแคลน พลังของคุณแตกร้าว`, 'bad'); hurt(s, 60, 'บาดเจ็บจากศึกชิงบัลลังก์เทพ'); if (s.alive) { randomDisability(s); s.level = Math.max(1, s.level - 9); } }
+  },
+  kneel: s => { s.flags.godslayTried = true; endQuest(s, 'h_godslay'); if (s.alive) hurt(s, 30, 'ถูกพลังเทพกดทับ'); },
+} });

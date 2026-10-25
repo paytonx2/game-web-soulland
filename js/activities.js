@@ -214,17 +214,23 @@ E('weaponShop', { forced: true, once: false, scene: 'forge', make: s => ({
   log(s, `🏹 คุณได้รับ <b>${w.th}</b>`, 'gold');
   present(s, 'weaponShop');
 } }) });
+// โอกาสชนะโดยประมาณตามส่วนต่างระดับ (จากการจำลองการประลอง)
+const duelOdds = gap => clamp(0.72 - gap * 0.045, 0.05, 0.95);
 E('duelMenu', { forced: true, once: false, scene: 'arena', make: s => ({
   title: '⚔️ จะไปประลองที่ไหน?', text: 'เลือกสนามประลองที่จะลงในปีนี้',
   opts: [
     o('spar', '🤼 ประลองซ้อมกับเพื่อน', 'ปลอดภัย ได้ประสบการณ์', { fx: [['fame', 2]] }),
-    o('arena', '🏟️ สนามประลองวิญญาณใหญ่ซั่วทัว', 'ชนะได้เงิน ชื่อเสียง และตราประลอง', { fx: [['money', '+'], ['fame', '+']], danger: 0.025, lock: s.age < 12 ? 'อายุ 12 ปีขึ้นไป' : s.rings.length < 1 ? 'ต้องมีวงแหวนอย่างน้อย 1 วง' : null }),
+    o('arena', '🏟️ ซั่วทัว · คู่ต่อสู้ระดับใกล้เคียง', `ระดับ ${lvl(s) - 2}–${lvl(s) + 2} · ชนะได้เงิน ชื่อเสียง และตราประลอง`, { odds: duelOdds(0), fx: [['money', '+'], ['fame', '+']], danger: 0.02, lock: s.age < 12 ? 'อายุ 12 ปีขึ้นไป' : s.rings.length < 1 ? 'ต้องมีวงแหวนอย่างน้อย 1 วง' : null }),
+    o('arenaUp', '🏟️ ซั่วทัว · ท้าคนระดับสูงกว่า', `ระดับ ${lvl(s) + 4}–${lvl(s) + 7} · รางวัล ×2`, { odds: duelOdds(5.5), fx: [['money', '×2'], ['fame', '×2']], danger: 0.03, lock: s.age < 12 ? 'อายุ 12 ปีขึ้นไป' : s.rings.length < 1 ? 'ต้องมีวงแหวนอย่างน้อย 1 วง' : null }),
+    o('arenaTop', '🏟️ ซั่วทัว · ท้ายอดฝีมือระดับสูงกว่ามาก', `ระดับ ${lvl(s) + 9}–${lvl(s) + 12} · รางวัล ×4 · แทบไม่มีใครชนะ`, { odds: duelOdds(10.5), fx: [['money', '×4'], ['fame', '×4']], danger: 0.04, lock: s.age < 12 ? 'อายุ 12 ปีขึ้นไป' : s.rings.length < 1 ? 'ต้องมีวงแหวนอย่างน้อย 1 วง' : null }),
     o('death', '☠️ สังเวียนเป็นตายใต้ดิน', 'รางวัลมหาศาล · แพ้ตาย 75%', { fx: [['money', 20 + lvl(s) * 4], ['fame', 10]], danger: 0.35, lock: s.age < 16 ? 'อายุ 16 ปีขึ้นไป' : s.rings.length < 2 ? 'ต้องมีวงแหวน 2 วง' : null }),
     o('cancel', 'เปลี่ยนใจ ไม่ไปแล้ว', 'คืนแต้มเวลา', {}),
   ],
 }), pick: {
   spar: s => startBattle(s, 'spar', { title: '🤼 ประลองซ้อม', eid: 'actSpar', lvlOff: R.i(-3, 3) }),
-  arena: s => { addRoute(s, { tyrant: 0.3 }); startBattle(s, 'arena', { title: '🏟️ สนามประลองวิญญาณใหญ่ซั่วทัว', eid: 'actArena' }); },
+  arena: s => { addRoute(s, { tyrant: 0.3 }); s.arenaMul = 1; startBattle(s, 'arena', { title: '🏟️ สนามประลองวิญญาณใหญ่ซั่วทัว', eid: 'actArena', lvlOff: R.i(-2, 2) }); },
+  arenaUp: s => { addRoute(s, { tyrant: 0.4 }); s.arenaMul = 2; startBattle(s, 'arena', { title: '🏟️ ท้าคนระดับสูงกว่า', eid: 'actArena', lvlOff: R.i(4, 7) }); },
+  arenaTop: s => { addRoute(s, { tyrant: 0.5 }); s.arenaMul = 4; startBattle(s, 'arena', { title: '🏟️ ท้ายอดฝีมือ', eid: 'actArena', lvlOff: R.i(9, 12) }); },
   death: s => { addRoute(s, { tyrant: 1, killing: 1 }); startBattle(s, 'deathmatch', { title: '☠️ สังเวียนใต้ดิน', eid: 'actDeath' }); },
   cancel: s => { s.ap += 1; s.done.duel = Math.max(0, (s.done.duel || 1) - 1); },
 } });
@@ -232,7 +238,9 @@ E('actSpar', { forced: true, once: false, make: () => ({ opts: [] }), battleEnd(
 E('actArena', { forced: true, once: false, make: () => ({ opts: [] }), battleEnd(s, won) {
   if (!won) return;
   s.arenaWins = (s.arenaWins || 0) + 1;
-  add(s, 'money', 8 + lvl(s) * 2); add(s, 'fame', R.i(3, 6));
+  const mul = s.arenaMul || 1; s.arenaMul = 1;
+  add(s, 'money', (8 + lvl(s) * 2) * mul); add(s, 'fame', R.i(3, 6) * mul);
+  if (mul > 1) s.arenaWins += mul - 1; // ชนะคนเก่งกว่านับเป็นหลายแต้ม
   const badge = s.arenaWins >= 20 ? 'ตราวิญญาณสีม่วง' : s.arenaWins >= 8 ? 'ตราวิญญาณสีทอง' : s.arenaWins >= 3 ? 'ตราวิญญาณสีเงิน' : null;
   if (badge && s.arenaBadge !== badge) { s.arenaBadge = badge; log(s, `🏅 สนามประลองมอบ <b>${badge}</b> ให้คุณ (ชนะ ${s.arenaWins} ครั้ง)`, 'gold'); }
 } });
