@@ -59,7 +59,8 @@ Q('beastBond', { icon: '🐾', th: 'สายสัมพันธ์กับ�
   reward: s => { s.flags.redBeast = true; add(s, 'agi', 3); addRoute(s, { beast: 3, life: 1 }); log(s, 'มันพาคุณไปพบรังสัตว์วิญญาณหมื่นปี และฝูงสัตว์ยอมรับคุณเป็นมิตร', 'gold'); } });
 
 // ---------- เหตุการณ์รับภารกิจ (สร้างอัตโนมัติจากรายการ) ----------
-for (const q of Object.values(QUESTS)) {
+// เหตุการณ์รับภารกิจ — เรียกใช้ได้จากไฟล์อื่นที่เพิ่มภารกิจภายหลัง (legend.js)
+function questOfferEvent(q) {
   E('qo_' + q.id, { questOffer: q.id, forced: true, once: true, scene: 'village', make: s => ({
     title: `${q.icon} ภารกิจ: ${q.th}`, text: `${q.offer}<br><span class="qhint">🎯 เป้าหมาย: ${q.desc} · วิธีทำ: ${q.hint} · เวลา ${q.deadline} ปี</span>`,
     opts: [
@@ -68,6 +69,7 @@ for (const q of Object.values(QUESTS)) {
     ],
   }), pick: { accept: s => startQuest(s, q.id) } });
 }
+Object.values(QUESTS).forEach(questOfferEvent);
 // ฉากจบของภารกิจที่ต้องสู้
 E('qf_wolf', { forced: true, once: false, scene: 'hunt', make: s => ({ title: '🐺 จ่าฝูงหมาป่าวายุปีศาจ', text: 'คุณตามรอยมาถึงถ้ำหลังเขา จ่าฝูงร่างใหญ่ตาแดงก่ำยืนขวางปากถ้ำ', opts: [
   o('fight', 'สู้กับจ่าฝูง', 'สนามประลอง (แพ้ไม่ถึงตายแต่บาดเจ็บ)', { fx: [['money', 30], ['fame', 6]] }),
@@ -124,6 +126,6 @@ function questYear(s) {
   }
   if ((s.quests || []).length >= MAX_QUESTS || !R.chance(0.4)) return;
   const taken = new Set([...(s.quests || []).map(x => x.id), ...(s.questsDone || []), ...(s.questsFailed || [])]);
-  const cands = Object.values(QUESTS).filter(q => !taken.has(q.id) && !s.seen['qo_' + q.id] && s.age >= q.age[0] && s.age <= q.age[1] && (!q.cond || q.cond(s)));
+  const cands = Object.values(QUESTS).filter(q => !taken.has(q.id) && !s.seen['qo_' + q.id] && s.age >= q.age[0] && s.age <= q.age[1] && (!q.lv || (lvl(s) >= q.lv[0] && lvl(s) <= q.lv[1])) && (!q.cond || q.cond(s)));
   if (cands.length) s.queue.push('qo_' + R.wpick(cands, q => q.w).id);
 }

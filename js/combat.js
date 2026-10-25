@@ -3,7 +3,7 @@
 // ============================================================
 const BATTLE_KINDS = {
   spar:       { th:'ประลองมิตรภาพ', death:0.005, dis:0.02, hurt:[8, 22], surrenderDeath:0 },
-  arena:      { th:'สนามประลองวิญญาณ', death:0.05, dis:0.07, hurt:[15, 40], surrenderDeath:0 },
+  arena:      { th:'สนามประลองวิญญาณ', death:0.03, dis:0.07, hurt:[15, 40], surrenderDeath:0 },
   deathmatch: { th:'ประลองเป็นตาย', death:0.75, dis:0.4, hurt:[30, 70], surrenderDeath:0.4 },
   beast:      { th:'ต่อสู้กับสัตว์วิญญาณ', death:0.15, dis:0.15, hurt:[20, 50], surrenderDeath:0.05 },
 };
@@ -20,25 +20,32 @@ function genFoeRings(level) {
 
 function combatant(o) {
   const soul = SOUL_BY_ID[o.soul];
-  const hpMax = Math.round((80 + o.level * 6 + o.str * 1.2) * (o.hpFrac ?? 1));
+  const hpBase = Math.round((100 + o.level * 8.5 + o.str * 1.4) * (o.hpMul ?? 1));
+  const hpMax = Math.round(hpBase * (o.hpFrac ?? 1));
   const enMax = Math.round(30 + o.level * 2 + o.spi);
   return {
     name: o.name, level: o.level, soul: o.soul, rings: o.rings,
     str: o.str, agi: o.agi, spi: o.spi, luck: o.luck ?? 30,
     mult: [0, 0.7, 0.85, 1, 1.15, 1.35][soul.tier] * (1 + (soul.over || 0) * 0.12) * (0.5 + ROLE_COMBAT[soul.role] * 0.5) * (o.mult ?? 1),
-    hp: Math.max(1, hpMax), hpMax: Math.round(80 + o.level * 6 + o.str * 1.2), en: enMax, enMax,
+    hp: Math.max(1, hpMax), hpMax: hpBase, en: enMax, enMax,
     shield: 0, buff: 0, stun: false, defending: false,
   };
 }
 
 function startBattle(s, kind, opts = {}) {
   const L = lvl(s);
-  const fl = clamp(L + (opts.lvlOff ?? R.i(-5, 5)), 1, 99);
-  const foeSoul = rollSoul(Math.max(3, s.familyTier), opts.tierMin || 1);
+  const DIFF = { spar: [-3, 3, 1.06], arena: [-2, 4, 1.1], deathmatch: [-2, 4, 1.1], beast: [0, 0, 1.1] }[kind] || [-3, 3, 1.08];
+  const fl = clamp(L + (opts.lvlOff ?? R.i(DIFF[0], DIFF[1])), 1, 99);
+  // วิญญาณยุทธ์ของศัตรู: ระดับใกล้เคียงของผู้เล่น (±1) — ไม่ได้เปรียบเสียเปรียบเกินไป
+  const myT = s.awakened ? SOUL_BY_ID[s.souls[0]].tier : 2, ft = clamp(myT + R.i(-1, 1) + (kind === 'deathmatch' && R.chance(0.3) ? 1 : 0), Math.max(1, opts.tierMin || 1), 5);
+  const fPool = SOULS.filter(x => x.tier === ft && x.role !== 'none');
+  const foeSoul = (fPool.length ? R.pick(fPool) : R.pick(SOULS)).id;
   const foeName = opts.foeName || genName(R.chance(0.5) ? 'M' : 'F').th;
   const foe = combatant({
     name: foeName, level: fl, soul: foeSoul, rings: genFoeRings(fl),
-    str: 8 + fl * 0.8 + R.i(0, 20), agi: 8 + fl * 0.8 + R.i(0, 20), spi: 8 + fl * 0.8 + R.i(0, 20),
+    // ค่าพลังศัตรูตามระดับ (ผู้เล่นที่ฝึกค่าพลังมาจะได้เปรียบ)
+    str: 10 + fl * 0.9 + R.i(0, 22), agi: 10 + fl * 0.9 + R.i(0, 22), spi: 10 + fl * 0.9 + R.i(0, 22),
+    mult: DIFF[2], hpMul: DIFF[2],
   });
   const me = combatant({
     name: s.name, level: L, soul: s.souls[0], rings: s.rings.map(r => r.years),
@@ -89,7 +96,7 @@ function act(b, att, def, action) {
   att.en -= skillCost(i);
   b._col = RING_TIERS[ringTierOf(years)].color; b._role = SOUL_BY_ID[att.soul].role;
   const role = SOUL_BY_ID[att.soul].role;
-  const pow = baseAtk(att) * (1.2 + ringPower(years) / 35);
+  const pow = baseAtk(att) * (1.15 + ringPower(years) / 55);
   const name = `ทักษะวงแหวนที่ ${i + 1} 「${SKILL_NAMES[role][i]}」`;
   if (role === 'control') { if (hit(b, att, def, pow * 0.7, name) && Math.random() < 0.55) { def.stun = true; b.log.push({ t: `${def.name} ถูกพันธนาการ!`, c: 'warn' }); } }
   else if (role === 'defense') { att.shield = 2; hit(b, att, def, pow * 0.6, name); }
@@ -102,7 +109,9 @@ function foeAI(b) {
   const f = b.foe, role = SOUL_BY_ID[f.soul].role;
   const usable = f.rings.map((_, i) => i).filter(i => f.en >= skillCost(i));
   if (role === 'heal' && f.hp < f.hpMax * 0.35 && usable.length) return 'skill:' + usable[usable.length - 1];
-  if (usable.length && Math.random() < 0.55) return 'skill:' + R.pick(usable.slice(-3));
+  if (usable.length && b.me.hp < b.me.hpMax * 0.3) return 'skill:' + usable[usable.length - 1]; // ปิดเกม
+  if (!usable.length && f.rings.length && f.en < skillCost(0)) return Math.random() < 0.6 ? 'defend' : 'attack'; // สะสมพลัง
+  if (usable.length && Math.random() < 0.5) return 'skill:' + R.pick(usable.slice(-3));
   return Math.random() < 0.15 ? 'defend' : 'attack';
 }
 
@@ -148,7 +157,7 @@ function finishBattle(s) {
   const K = BATTLE_KINDS[b.kind];
   const won = b.result === 'win';
   // บาดแผลจากการต่อสู้ติดตัวกลับมา
-  s.hp = Math.max(won ? 5 : Math.round(maxHp(s) * 0.35), Math.round(maxHp(s) * Math.max(0, b.me.hp) / b.me.hpMax));
+  s.hp = Math.max(won ? Math.round(maxHp(s) * 0.5) : Math.round(maxHp(s) * 0.35), Math.round(maxHp(s) * Math.max(0, b.me.hp) / b.me.hpMax));
   const label = b.eid ? b.title : K.th;
   if (won) {
     log(s, `🏆 ชนะ${label} — เอาชนะ ${b.foe.name} (ระดับ ${b.foe.level})`, 'good');

@@ -607,6 +607,7 @@ function endYear(s) {
   s.prevFeed = s.feed.length ? s.feed : s.prevFeed; s.prevD = s.feedD; s.feed = []; s.news = null;
   const n = 1 + (s.skip || 0); s.skip = 0;
   for (let i = 0; i < n && s.alive; i++) yearTick(s);
+  if (s.alive && s.journey) finishJourney(s);
   s.boost = 1;
   if (!s.alive) return;
   s.ap = apMax(s); s.done = {}; s.yearHunt = false; s.yearCult = 0; s.yearFights = 0;
@@ -616,10 +617,12 @@ function endYear(s) {
   if (ce.length) s.queue.push(R.pick(ce).id);
   routeYear(s);
   questYear(s);
+  // อาจารย์แก่ตัวลง — จากไปเองเมื่อผู้เล่นอายุมากแล้ว
+  if (s.mentor && !s.flags.mentorGone && s.age >= 62 && R.chance(0.15)) { log(s, `🕯️ ${s.mentor}จากไปอย่างสงบในวัยชรา ทิ้งไว้เพียงคำสอนที่คุณจำได้ทุกคำ`, 'bad'); mentorPass(s); }
   if (s.age >= 1 && s.age <= 5) childYear(s);
-  const pool = storyPool(s);
-  if (pool.length && R.chance(s.age < 6 ? 0.7 : 0.75)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
-  if (pool.length > 1 && s.tend.adv > 3 && R.chance(0.3)) s.queue.push(R.wpick(pool, e => typeof e.w === 'function' ? e.w(s) : e.w).id);
+  const pool = storyPool(s), wt = e => (typeof e.w === 'function' ? e.w(s) : e.w) * storyTierWeight(s, e);
+  if (pool.length && R.chance(s.age < 6 ? 0.7 : 0.75)) s.queue.push(R.wpick(pool, wt).id);
+  if (pool.length > 1 && s.tend.adv > 3 && R.chance(0.3)) s.queue.push(R.wpick(pool, wt).id);
   presentNext(s);
 }
 

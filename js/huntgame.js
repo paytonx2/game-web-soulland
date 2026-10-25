@@ -45,7 +45,7 @@ E('huntMode', { forced: true, once: false, scene: 'hunt', make: s => {
     ] };
 }, pick: {
   self: s => { const c = s.huntPick; s.hunt = { ...c, p: huntGameParams(s, c.years, c.compat) }; },
-  fight: s => { const c = s.huntPick, h = huntCalc(s, c.years, c.compat); startBattle(s, 'beast', { title: `🐾 ประลองกับ${c.th} ${fmt(c.years)} ปี`, eid: 'huntFight', foeName: c.th, beast: true, years: c.years, lvlOff: clamp(Math.round((h.ratio - 0.8) * 20) + h.t * 2, -8, 40), deathP: huntFightDeath(s, c) }); },
+  fight: s => { const c = s.huntPick, h = huntCalc(s, c.years, c.compat); startBattle(s, 'beast', { title: `🐾 ประลองกับ${c.th} ${fmt(c.years)} ปี`, eid: 'huntFight', foeName: c.th, beast: true, years: c.years, lvlOff: clamp(Math.round((h.ratio - 0.8) * 16) + h.t, -8, 35), deathP: huntFightDeath(s, c) }); },
   escort: s => { const c = s.huntPick; s.huntPick = null; resolveHunt(s, c.years, c.th, c.compat, { escort: true }); },
   back: s => { s.huntPick = null; s.yearHunt = false; },
 } });

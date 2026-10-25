@@ -58,8 +58,8 @@ E('t_mentorDeath', { age: [20, 60], w: 4, cond: s => !!s.mentor && !s.flags.ment
   o('notes', 'บันทึกการบำเพ็ญทั้งชีวิตของท่าน', 'ความรู้ล้ำค่า บำเพ็ญเร็วขึ้นถาวร', { fx: [['wis', 8]] }),
   o('treasure', 'ถุงเงินและสมบัติที่ท่านสะสม', 'ได้เงินก้อนโต', { fx: [['money', 150]] }),
   o('legacy', 'คำสั่งเสียให้ดูแลศิษย์รุ่นน้อง', 'เป็นที่เคารพ ชื่อเสียงขึ้น', { fx: [['fame', 10], ['mood', 5]] }),
-] }), pick: { notes: s => { s.flags.mentorGone = true; add(s, 'wis', 8); s.flags.secretManual = true; if (isCultivator(s)) cultivate(s, 1); log(s, `บันทึกของ${s.mentor}มีเคล็ดที่ไม่เคยสอนใคร — คุณเข้าใจการบำเพ็ญลึกซึ้งขึ้น`, 'good'); },
-  treasure: s => { s.flags.mentorGone = true; add(s, 'money', 150); }, legacy: s => { s.flags.mentorGone = true; add(s, 'fame', 10); add(s, 'mood', 5); addRoute(s, { life: 1 }); } } });
+] }), pick: { notes: s => { mentorPass(s); add(s, 'wis', 8); s.flags.secretManual = true; if (isCultivator(s)) cultivate(s, 1); log(s, `บันทึกของ${s.mentor}มีเคล็ดที่ไม่เคยสอนใคร — คุณเข้าใจการบำเพ็ญลึกซึ้งขึ้น`, 'good'); },
+  treasure: s => { mentorPass(s); add(s, 'money', 150); }, legacy: s => { mentorPass(s); add(s, 'fame', 10); add(s, 'mood', 5); addRoute(s, { life: 1 }); } } });
 
 E('t_child', { age: [38, 60], w: 3, cond: s => !!s.flags.married, scene: 'village', make: s => ({ title: '👶 ลูกโตแล้ว', text: 'ลูกของคุณอายุสิบสอง พลังวิญญาณแต่กำเนิดน่าจับตา วันนี้ลูกถามว่า "ข้าควรเดินทางไหนดี?"', opts: [
   o('school', 'ส่งไปสถาบันชั้นนำ', 'ต้องจ่ายค่าเล่าเรียน 80 แต่ลูกมีอนาคต', { fxa: [['money', -80], ['mood', 8]], lock: s.money < 80 ? 'เงินไม่พอ (80)' : null }),

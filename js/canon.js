@@ -69,7 +69,7 @@ E('c_soto', { canon: true, wy: [13, 15], age: [12, 30], cond: s => isCultivator(
     o('challenge', 'ท้าประลองตัวต่อตัวกับไต้มู่ไป๋', 'ประลองในสนาม (เขาแข็งแกร่งมาก)', { fx: [['fame', 15]] }),
     o('study', 'นั่งดูและวิเคราะห์การประสานทีม', 'ได้ความรู้', { fxa: [['wis', 4]], flag: 'team' }),
   ],
-}), pick: { challenge: s => startBattle(s, 'arena', { title: '🐯 ประลองกับไต้มู่ไป๋', eid: 'c_soto', foeName: 'ไต้มู่ไป๋', lvlOff: R.i(3, 9), tierMin: 4 }) },
+}), pick: { challenge: s => startBattle(s, 'arena', { title: '🐯 ประลองกับไต้มู่ไป๋', eid: 'c_soto', foeName: 'ไต้มู่ไป๋', lvlOff: R.i(2, 7), tierMin: 4 }) },
   battleEnd(s, won) { if (won) { add(s, 'fame', 15); log(s, 'ทั้งสนามโห่ร้อง — คุณล้มไต้มู่ไป๋ได้!', 'gold'); } } });
 
 E('c_dugubo', { canon: true, wy: [12, 18], age: [14, 50], cond: s => isCultivator(s) && lvl(s) >= 25, scene: 'forest', make: s => ({
