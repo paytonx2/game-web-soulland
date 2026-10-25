@@ -135,7 +135,7 @@ function actState(s, a) {
   let lock = a.lock ? a.lock(s) : null;
   if (!lock && used >= a.rep) lock = 'ทำครบแล้วปีนี้';
   if (!lock && a.ap > s.ap) lock = 'แต้มเวลาปีนี้หมดแล้ว';
-  if (!lock && (s.pending || s.battle)) lock = 'ต้องตัดสินใจเรื่องตรงหน้าก่อน';
+  if (!lock && (s.pending || s.battle || s.hunt)) lock = 'ต้องตัดสินใจเรื่องตรงหน้าก่อน';
   return { a, lock, used };
 }
 // แต่ละหมวดแสดงการ์ดเดียว: ตัวที่ prefer ก่อน แล้วตัวแรกที่ไม่ติดล็อกของตัวเอง
@@ -180,7 +180,7 @@ function topTendency(s) {
 }
 function autoSpend(s) {
   let guard = 0;
-  while (s.ap > 0 && s.alive && !s.pending && !s.battle && guard++ < 8) {
+  while (s.ap > 0 && s.alive && !s.pending && !s.battle && !s.hunt && guard++ < 8) {
     const cands = availableActs(s).filter(x => !x.lock && !x.a.noAuto && x.a.ap > 0);
     if (!cands.length) break;
     const tot = Math.max(1, Object.values(s.tend).reduce((a, b) => a + b, 0));

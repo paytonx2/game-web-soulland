@@ -70,8 +70,8 @@ function run(fn) {
   save(); render();
   waited = 0;
   // มีเรื่องให้ตัดสินใจใหม่ แต่กล่องตัวเลือกอยู่นอกจอ → เลื่อนให้เห็น
-  if ((S.pending || S.battle) && isMobile() && mtab !== 'play') setTab('play');
-  if ((S.pending || S.battle) && !$('game').hidden) { const r = $('eventBox').getBoundingClientRect(); if (r.top > innerHeight - 120 || r.bottom < 80) $('eventBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  if ((S.pending || S.battle || S.hunt) && isMobile() && mtab !== 'play') setTab('play');
+  if ((S.pending || S.battle || S.hunt) && !$('game').hidden) { const r = $('eventBox').getBoundingClientRect(); if (r.top > innerHeight - 120 || r.bottom < 80) $('eventBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   if (!S.alive) { addGrave(S); setTimeout(showTomb, 1600); }
 }
 function pickOpt(k) { run(() => choose(S, k)); }
@@ -88,6 +88,7 @@ function sceneSpec(s) {
   const seed = hash(s.id) + s.age * 17;
   const spec = { seed, tod: ['dawn', 'day', 'day', 'dusk', 'night', 'day'][seed % 6], place: s.place, hero: heroSpec(s) };
   if (!s.alive) return { ...spec, kind: s.ascended ? 'sea' : 'grave', tod: 'dusk' };
+  if (s.hunt) return { ...spec, kind: 'hunt', tod: 'dusk' };
   if (s.battle) {
     const b = s.battle;
     spec.kind = { bandits:'road', assassin:'night', killingCity:'killing', evilMaster:'night', bully:'academy', darkInvite:'night', mercJob:'road' }[b.eid] || 'arena';
@@ -229,7 +230,7 @@ function renderTime() {
 function timerWait() { return (S.ap > 0 ? YEAR_MS : IDLE_MS) / speed; }
 function tick() {
   if (!S || $('game').hidden) return;
-  const live = S.alive && playing && !S.pending && !S.battle && $('overlay').hidden;
+  const live = S.alive && playing && !S.pending && !S.battle && !S.hunt && $('overlay').hidden;
   if (live) waited += 250;
   const w = timerWait(), bar = $('cdBar'), txt = $('cdText');
   if (bar) {
@@ -347,8 +348,9 @@ function optHtml(c, i) {
 function renderEvent() {
   const s = S;
   keyMap = [];
-  let h = `<div class="ev-head"><b>${s.battle ? 'การประลอง' : s.pending ? 'ทางแยกของชีวิต' : 'ปีนี้'}</b>${lifeStage(s.age)} · อายุ ${s.age} ปี</div>`;
-  if (s.battle) h += battleHtml(s.battle);
+  let h = `<div class="ev-head"><b>${s.hunt ? 'ล่าวงแหวน' : s.battle ? 'การประลอง' : s.pending ? 'ทางแยกของชีวิต' : 'ปีนี้'}</b>${lifeStage(s.age)} · อายุ ${s.age} ปี</div>`;
+  if (s.hunt) h += huntGameHtml(s.hunt);
+  else if (s.battle) h += battleHtml(s.battle);
   else if (s.pending) {
     const p = s.pending;
     h += `<div class="q-title"><span class="bolt">⚡</span>${p.title}</div><div class="q-text">${p.text}</div><div class="opts">`;
@@ -362,6 +364,7 @@ function renderEvent() {
   }
   $('eventBox').innerHTML = h;
   renderActs();
+  if (s.hunt) startHuntGame();
   const bl = $('eventBox').querySelector('.blog'); if (bl) bl.scrollTop = bl.scrollHeight;
 }
 
@@ -480,6 +483,70 @@ function playBattle(b, done) {
     requestAnimationFrame(frame);
   };
   next();
+}
+
+// ---------- มินิเกมล่าวงแหวน: กดให้ตรงจังหวะ ----------
+let HG = null;
+function huntGameHtml(c) {
+  const p = c.p, rt = RING_TIERS[p.t];
+  return `<div class="q-title"><span class="bolt">🏹</span>ล่า${c.th} อายุ ${fmt(c.years)} ปี</div>
+    <div class="note">ความยาก <b>${p.label}</b> · กด <b>Space</b> หรือแตะปุ่ม ตอนเข็มอยู่ในช่องทอง · ตรงกลางช่อง = โจมตีสมบูรณ์แบบ</div>
+    <div class="hgame" style="--rc:${rt.color}">
+      <div class="hg-top"><span id="hgRound"></span><span id="hgLives"></span></div>
+      <div class="hg-bar" id="hgBar"><div class="hg-zone" id="hgZone"><i></i></div><div class="hg-cur" id="hgCur"></div></div>
+      <div class="hg-msg" id="hgMsg">เตรียมตัว…</div>
+      <button class="pbtn hg-btn" id="hgBtn">⚔️ จู่โจม! <small>(Space)</small></button>
+    </div>`;
+}
+function hgNewZone(g) {
+  g.zw = g.c.p.zone; g.zx = 0.06 + Math.random() * (0.88 - g.zw);
+}
+function startHuntGame() {
+  if (HG && HG.c === S.hunt) { hgPaint(); return; }
+  const c = S.hunt;
+  HG = { c, hits: 0, misses: 0, perfect: 0, speed: c.p.speed, phase: 'ready', t0: performance.now() + 1400, until: performance.now() + 1400 };
+  hgNewZone(HG);
+  const loop = now => { if (!HG || HG.c !== c) return; hgTick(now); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+const hgPos = (g, now) => { const u = Math.max(0, (now - g.t0) / 1000 * g.speed) % 2; return u < 1 ? u : 2 - u; };
+const hgZoneX = (g, now) => g.c.p.moving ? clamp(g.zx + Math.sin(now / 650) * 0.12, 0.02, 0.98 - g.zw) : g.zx;
+function hgPaint(now = performance.now()) {
+  const g = HG; if (!g) return;
+  const cur = $('hgCur'), zone = $('hgZone'); if (!cur) return;
+  cur.style.left = (g.phase === 'ready' ? 0 : hgPos(g, now) * 100) + '%';
+  zone.style.left = hgZoneX(g, now) * 100 + '%'; zone.style.width = g.zw * 100 + '%';
+  $('hgRound').innerHTML = `🎯 เข้าเป้า <b>${g.hits}/${g.c.p.rounds}</b>`;
+  $('hgLives').innerHTML = '❤️'.repeat(g.c.p.lives - g.misses) + '🖤'.repeat(g.misses);
+}
+function hgTick(now) {
+  const g = HG;
+  if (g.phase === 'ready') { const left = Math.ceil((g.until - now) / 470); $('hgMsg') && ($('hgMsg').textContent = left > 0 ? `เตรียมตัว… ${left}` : 'ลงมือ!'); if (now >= g.until) { g.phase = 'play'; g.t0 = now; } }
+  else if (g.phase === 'pause' && now >= g.until) { g.phase = 'play'; g.t0 = now; }
+  hgPaint(now);
+}
+function huntPress() {
+  const g = HG; if (!g) return;
+  hgTick(performance.now()); // อัปเดตสถานะเผื่อ requestAnimationFrame ถูกหน่วง (แท็บเบื้องหลัง)
+  if (g.phase !== 'play') return;
+  const now = performance.now(), pos = hgPos(g, now), zx = hgZoneX(g, now), mid = zx + g.zw / 2, bar = $('hgBar');
+  const hit = pos >= zx && pos <= zx + g.zw, perfect = hit && Math.abs(pos - mid) <= g.zw * 0.18;
+  if (hit) { g.hits++; if (perfect) g.perfect++; floatNum(perfect ? 'สมบูรณ์แบบ!' : 'เข้าเป้า!', POS.foe, perfect ? 'out crit' : 'out'); }
+  else { g.misses++; floatNum('พลาด!', POS.me, 'in'); const fr = $('scene').closest('.scene-frame'); fr.classList.remove('shake'); void fr.offsetWidth; fr.classList.add('shake'); }
+  bar.classList.remove('hit', 'miss', 'perfect'); void bar.offsetWidth; bar.classList.add(perfect ? 'perfect' : hit ? 'hit' : 'miss');
+  $('hgMsg').textContent = perfect ? '💥 โจมตีจุดตายสมบูรณ์แบบ!' : hit ? '⚔️ เข้าเป้า! สัตว์วิญญาณเซถอย' : '💢 พลาด! สัตว์วิญญาณโต้กลับ';
+  const p = g.c.p;
+  if (g.hits >= p.rounds || g.misses >= p.lives) {
+    g.phase = 'done';
+    const res = { ok: g.hits >= p.rounds, hits: g.hits, misses: g.misses, perfect: g.perfect };
+    $('hgMsg').textContent = res.ok ? '🏆 คุณล้มสัตว์วิญญาณได้แล้ว!' : '☠️ สัตว์วิญญาณเหนือกว่าคุณ…';
+    hgPaint(now);
+    setTimeout(() => { HG = null; run(() => finishHuntGame(S, res)); }, 1100);
+    return;
+  }
+  if (hit) { hgNewZone(g); g.speed *= 1.07; }
+  g.phase = 'pause'; g.until = now + 420;
+  hgPaint(now);
 }
 
 // ---------- overlay ----------
@@ -700,12 +767,14 @@ $('eventBox').onclick = e => {
   const a = e.target.closest('[data-act]');
   if (a && !a.disabled) { run(() => doAct(S, a.dataset.act)); return; }
   if (e.target.closest('#btnNextYear')) { nextYearNow(); return; }
+  if (e.target.closest('#hgBtn') || e.target.closest('#hgBar')) { huntPress(); return; }
   if (e.target.id === 'evTomb') showTomb();
   if (e.target.id === 'evNew') showBirth();
 };
 document.addEventListener('keydown', e => {
   if (!$('overlay').hidden) { if (e.key === 'Escape' && S && S.alive && !$('game').hidden) closeOverlay(); return; }
   if (!S || ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (S.hunt) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) huntPress(); } return; }
   if (/^[1-9]$/.test(e.key)) { const f = keyMap[+e.key - 1]; if (f) { e.preventDefault(); f(); } }
   else if (e.key === 'Enter') { e.preventDefault(); nextYearNow(); }
   else if (e.key === ' ') { e.preventDefault(); playing = !playing; renderTime(); }

@@ -260,7 +260,7 @@ function addSoul(s, n) {
 function apply(s, fx) { for (const [k, n] of fx || []) if (typeof n === 'number') add(s, k, n); }
 function die(s, cause) {
   if (!s.alive) return;
-  s.alive = false; s.cause = cause; s.hp = 0; s.pending = null; s.battle = null;
+  s.alive = false; s.cause = cause; s.hp = 0; s.pending = null; s.battle = null; s.hunt = null;
   log(s, `☠️ <b>${cause}</b> — สิ้นชีวิตเมื่ออายุ ${s.age} ปี`, 'death');
 }
 function hurt(s, n, cause, lethal = true) {
@@ -384,22 +384,26 @@ function beastChoices(s) {
   }
   return out.sort((a, b) => a.years - b.years).map(o => ({ ...o, compat: o.b.aff === 'any' || (AFF_MATCH[role] || []).includes(o.b.aff) }));
 }
-function resolveHunt(s, years, beast, compat) {
+function resolveHunt(s, years, beast, compat, opt = {}) {
   s.yearHunt = true;
   const h = huntCalc(s, years, compat), idx = s.rings.length;
-  if (!h.free && h.escort && h.cost) { add(s, 'money', -h.cost); log(s, `💰 จ่าย ${fmt(h.cost)} เหรียญจ้างทีมคุ้มกัน`); }
+  if (opt.self) { /* ล่าเอง: ผลการต่อสู้ตัดสินจากมินิเกมแล้ว */ }
+  else if (!h.free && h.escort && h.cost) { add(s, 'money', -h.cost); log(s, `💰 จ่าย ${fmt(h.cost)} เหรียญจ้างทีมคุ้มกัน`); }
   else if (!h.escort) log(s, '⚠️ เงินไม่พอจ้างทีมคุ้มกัน ต้องล่าเพียงลำพัง!', 'warn');
-  log(s, `🐾 คุณเผชิญหน้ากับ<b>${beast}</b> อายุ ${fmt(years)} ปี`);
-  if (R.chance(h.huntRisk)) {
+  if (!opt.self) log(s, `🐾 ${opt.escort ? 'ทีมของคุณ' : 'คุณ'}เผชิญหน้ากับ<b>${beast}</b> อายุ ${fmt(years)} ปี`);
+  if (!opt.self && R.chance(h.huntRisk)) {
     const r = Math.random();
     if (r < 0.3) { die(s, `ถูก${beast} ${fmt(years)} ปีสังหารระหว่างล่าวงแหวน`); return; }
     if (r < 0.6) { log(s, `${beast}ขย้ำคุณอย่างโหดร้าย`, 'bad'); hurt(s, R.i(30, 60), `ถูก${beast}สังหาร`); if (s.alive) randomDisability(s); }
     else { log(s, 'คุณบาดเจ็บหนักและต้องหนีกลับมามือเปล่า', 'bad'); hurt(s, R.i(20, 45), `ถูก${beast}สังหาร`); }
     return;
   }
+  // ซึมซับวงแหวน: แม้ไม่เกินขีดจำกัด วงแหวนที่ใกล้ขีดจำกัดก็อาจสลายได้ — โชคช่วยได้มาก
+  const softFail = Math.max(0, h.ratio - 0.6) * 0.2 * (1 - s.luck / 120) * (opt.perfect ? 0.5 : 1);
+  if (h.ratio <= 1 && R.chance(softFail)) { log(s, '💨 วงแหวนวิญญาณแตกสลายก่อนคุณจะซึมซับได้ครบ — ดวงไม่เข้าข้างคุณในครั้งนี้', 'bad'); hurt(s, R.i(5, 15), 'ซึมซับวงแหวนล้มเหลว'); return; }
   if (h.ratio > 1) {
     log(s, `⚡ พลังของวงแหวนเกินขีดจำกัดร่างกาย! (${fmt(years)} / ~${fmt(h.limit)} ปี)`, 'warn');
-    if (R.chance(h.absorb)) {
+    if (R.chance(h.absorb * (opt.perfect ? 0.8 : 1))) {
       if (R.chance(0.65)) { die(s, 'ร่างระเบิดเพราะดูดซับวงแหวนวิญญาณเกินขีดจำกัด'); return; }
       log(s, 'คุณรอดตายอย่างหวุดหวิด แต่การดูดซับล้มเหลว', 'bad');
       hurt(s, R.i(40, 70), 'ดูดซับวงแหวนวิญญาณล้มเหลว');
@@ -498,8 +502,8 @@ E('hunt', {
   pick: new Proxy({}, { get: (_, k) => (s, ctx) => {
     if (k === 'wait') { s.huntWait = s.age; log(s, 'คุณตัดสินใจรอไปก่อน'); return; }
     if (k === 'clan') { resolveHunt(s, Math.round(ringLimit(s, s.rings.length) * 0.85), 'สัตว์วิญญาณที่ตระกูลจับมา', true); add(s, 'fame', -2); return; }
-    const c = ctx.choices[+k.slice(1)];
-    resolveHunt(s, c.years, c.th, c.compat);
+    // เลือกเป้าหมายแล้ว → ขั้นถัดไปเลือกว่าจะล่าเองหรือให้คนอื่นล่า
+    s.yearHunt = true; s.huntPick = ctx.choices[+k.slice(1)]; s.queue.unshift('huntMode');
   } }),
 });
 
@@ -552,7 +556,7 @@ function mortality(s) {
   if (s.mood < 10 && R.chance(0.15)) { log(s, '🌧️ คุณจมดิ่งในความเศร้าจนล้มป่วย', 'bad'); hurt(s, 15, 'ตรอมใจจนสิ้นใจ'); }
 }
 // ---------- การไหลของเวลา: 1 ปี = เรื่องราวในคิว + กิจกรรมตามแต้มเวลา ----------
-function canEndYear(s) { return s.alive && !s.pending && !s.battle; }
+function canEndYear(s) { return s.alive && !s.pending && !s.battle && !s.hunt; }
 function forcedEvent(s) {
   for (const [id, ev] of Object.entries(EVENTS)) if (ev.forced && ev.when && ev.when(s)) return id;
   if (isBottleneck(s) && s.age > s.huntWait && !s.yearHunt) return 'hunt';
@@ -560,7 +564,7 @@ function forcedEvent(s) {
 }
 // แสดงเรื่องถัดไปในปีนี้ (ถ้ามี) — เรียกหลังทุกการเลือก/กิจกรรม
 function presentNext(s) {
-  if (!s.alive || s.pending || s.battle) return;
+  if (!s.alive || s.pending || s.battle || s.hunt) return;
   const f = forcedEvent(s);
   if (f) return present(s, f);
   while (s.queue.length) {
