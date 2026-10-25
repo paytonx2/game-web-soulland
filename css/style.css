@@ -736,3 +736,7 @@ body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-i
 }
 .hero .seal { top: auto; bottom: 26px; }
 @media (max-width: 860px) { .hero .seal { top: auto; bottom: 16px; } }
+/* สระบน/วรรณยุกต์ไทยล้นกรอบบรรทัด — background-clip:text จะไม่ระบายส่วนที่ล้น จึงต้องเผื่อพื้นที่ */
+.title, .hero .title, .yt b { line-height: 1.4; padding: .26em .12em .12em; margin-top: 0; overflow: visible; }
+.hero .title { margin-top: -.12em; }
+.yt b { padding: .2em .1em .08em; margin-top: -.15em; }
