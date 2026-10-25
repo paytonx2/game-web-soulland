@@ -485,68 +485,97 @@ function playBattle(b, done) {
   next();
 }
 
-// ---------- มินิเกมล่าวงแหวน: กดให้ตรงจังหวะ ----------
+// ---------- มินิเกมล่าวงแหวน: วงกลมหมุน กดให้ตรงจังหวะ ----------
+// แต่ละรอบ: รอสุ่มสั้น ๆ (มีสัญญาณเตือน) → เข็มหมุนหนึ่งรอบ → กดตอนเข็มอยู่ในช่องทอง (ต้นช่องสีขาว = สมบูรณ์แบบ)
+// เข็มหมุนครบรอบโดยไม่กด = พลาด · วงแหวนอายุสูง/ล่าเกินตัว: ช่องแคบ หมุนเร็ว และบางรอบหมุนกลับทิศ
 let HG = null;
+const HG_R = 46, HG_C = 2 * Math.PI * HG_R;
 function huntGameHtml(c) {
   const p = c.p, rt = RING_TIERS[p.t];
   return `<div class="q-title"><span class="bolt">🏹</span>ล่า${c.th} อายุ ${fmt(c.years)} ปี</div>
-    <div class="note">ความยาก <b>${p.label}</b> · กด <b>Space</b> หรือแตะปุ่ม ตอนเข็มอยู่ในช่องทอง · ตรงกลางช่อง = โจมตีสมบูรณ์แบบ</div>
+    <div class="note">ความยาก <b>${p.label}</b> · เมื่อเข็มหมุนเข้าช่องทอง กด <b>Space</b> หรือแตะวงกลม · ต้นช่องสีขาว = โจมตีจุดตาย</div>
     <div class="hgame" style="--rc:${rt.color}">
       <div class="hg-top"><span id="hgRound"></span><span id="hgLives"></span></div>
-      <div class="hg-bar" id="hgBar"><div class="hg-zone" id="hgZone"><i></i></div><div class="hg-cur" id="hgCur"></div></div>
+      <div class="hg-wheel" id="hgBar">
+        <svg viewBox="0 0 120 120">
+          <circle class="hg-track" cx="60" cy="60" r="${HG_R}"/>
+          <circle class="hg-good" id="hgGood" cx="60" cy="60" r="${HG_R}"/>
+          <circle class="hg-great" id="hgGreat" cx="60" cy="60" r="${HG_R}"/>
+          <g id="hgNeedle"><line x1="60" y1="60" x2="60" y2="8"/><circle cx="60" cy="60" r="4"/></g>
+        </svg>
+        <div class="hg-core" id="hgCore">SPACE</div>
+      </div>
       <div class="hg-msg" id="hgMsg">เตรียมตัว…</div>
       <button class="pbtn hg-btn" id="hgBtn">⚔️ จู่โจม! <small>(Space)</small></button>
     </div>`;
 }
+// ช่องรอบใหม่: องศาเริ่มต้น / ความกว้าง (จากความยาก) / ทิศหมุน
 function hgNewZone(g) {
-  g.zw = g.c.p.zone; g.zx = 0.06 + Math.random() * (0.88 - g.zw);
+  const p = g.c.p;
+  g.arc = clamp(p.zone * 210, 12, 80);
+  g.great = Math.max(5, g.arc * 0.24);
+  g.start = 110 + Math.random() * (230 - g.arc);
+  g.dir = p.moving && Math.random() < 0.4 ? -1 : 1;
+  g.T = clamp(1.25 / g.speed, 0.6, 2.4) * 1000;
 }
 function startHuntGame() {
   if (HG && HG.c === S.hunt) { hgPaint(); return; }
-  const c = S.hunt;
-  HG = { c, hits: 0, misses: 0, perfect: 0, speed: c.p.speed, phase: 'ready', t0: performance.now() + 1400, until: performance.now() + 1400 };
+  const c = S.hunt, now = performance.now();
+  HG = { c, hits: 0, misses: 0, perfect: 0, speed: c.p.speed, phase: 'wait', until: now + 1500 };
   hgNewZone(HG);
-  const loop = now => { if (!HG || HG.c !== c) return; hgTick(now); requestAnimationFrame(loop); };
+  const loop = t => { if (!HG || HG.c !== c) return; hgTick(t); requestAnimationFrame(loop); };
   requestAnimationFrame(loop);
 }
-const hgPos = (g, now) => { const u = Math.max(0, (now - g.t0) / 1000 * g.speed) % 2; return u < 1 ? u : 2 - u; };
-const hgZoneX = (g, now) => g.c.p.moving ? clamp(g.zx + Math.sin(now / 650) * 0.12, 0.02, 0.98 - g.zw) : g.zx;
+// มุมของเข็ม (องศา เริ่มที่ 12 นาฬิกา หมุนตามเข็ม หรือทวนเมื่อ dir = -1)
+const hgAngle = (g, now) => { const k = clamp((now - g.t0) / g.T, 0, 1) * 360; return g.dir > 0 ? k : 360 - k; };
 function hgPaint(now = performance.now()) {
-  const g = HG; if (!g) return;
-  const cur = $('hgCur'), zone = $('hgZone'); if (!cur) return;
-  cur.style.left = (g.phase === 'ready' ? 0 : hgPos(g, now) * 100) + '%';
-  zone.style.left = hgZoneX(g, now) * 100 + '%'; zone.style.width = g.zw * 100 + '%';
+  const g = HG; if (!g || !$('hgNeedle')) return;
+  const set = (el, from, len) => { el.style.strokeDasharray = `${len / 360 * HG_C} ${HG_C}`; el.style.transform = `rotate(${from - 90}deg)`; };
+  const show = g.phase !== 'wait';
+  // ทวนเข็ม: โซนสมบูรณ์แบบอยู่ปลายช่องด้านที่เข็มเข้ามาก่อน
+  set($('hgGood'), g.start, show ? g.arc : 0);
+  set($('hgGreat'), g.dir > 0 ? g.start : g.start + g.arc - g.great, show ? g.great : 0);
+  $('hgNeedle').style.transform = `rotate(${g.phase === 'spin' ? hgAngle(g, now) : g.dir > 0 ? 0 : 360}deg)`;
+  $('hgNeedle').style.opacity = show ? 1 : 0.25;
   $('hgRound').innerHTML = `🎯 เข้าเป้า <b>${g.hits}/${g.c.p.rounds}</b>`;
   $('hgLives').innerHTML = '❤️'.repeat(g.c.p.lives - g.misses) + '🖤'.repeat(g.misses);
+  const core = $('hgCore'), wheel = $('hgBar');
+  wheel.classList.toggle('warn', g.phase === 'warn');
+  wheel.classList.toggle('rev', g.dir < 0 && show);
+  if (g.phase === 'wait') core.textContent = '…'; else if (g.phase === 'warn') core.textContent = '!'; else if (g.phase === 'spin') core.textContent = g.dir < 0 ? '⟲' : 'SPACE';
 }
 function hgTick(now) {
-  const g = HG;
-  if (g.phase === 'ready') { const left = Math.ceil((g.until - now) / 470); $('hgMsg') && ($('hgMsg').textContent = left > 0 ? `เตรียมตัว… ${left}` : 'ลงมือ!'); if (now >= g.until) { g.phase = 'play'; g.t0 = now; } }
-  else if (g.phase === 'pause' && now >= g.until) { g.phase = 'play'; g.t0 = now; }
+  const g = HG; if (!g) return;
+  if (g.phase === 'wait' && now >= g.until) { g.phase = 'warn'; g.until = now + 380 + Math.random() * 500; const m = $('hgMsg'); if (m) m.textContent = g.dir < 0 ? '⚠️ ระวัง! มันหมุนตัวสวนทาง' : '⚠️ มันกำลังจะจู่โจม!'; }
+  else if (g.phase === 'warn' && now >= g.until) { g.phase = 'spin'; g.t0 = now; }
+  else if (g.phase === 'spin' && now - g.t0 >= g.T) hgResolve(false, false, now); // หมุนครบรอบโดยไม่กด
   hgPaint(now);
 }
 function huntPress() {
   const g = HG; if (!g) return;
-  hgTick(performance.now()); // อัปเดตสถานะเผื่อ requestAnimationFrame ถูกหน่วง (แท็บเบื้องหลัง)
-  if (g.phase !== 'play') return;
-  const now = performance.now(), pos = hgPos(g, now), zx = hgZoneX(g, now), mid = zx + g.zw / 2, bar = $('hgBar');
-  const hit = pos >= zx && pos <= zx + g.zw, perfect = hit && Math.abs(pos - mid) <= g.zw * 0.18;
-  if (hit) { g.hits++; if (perfect) g.perfect++; floatNum(perfect ? 'สมบูรณ์แบบ!' : 'เข้าเป้า!', POS.foe, perfect ? 'out crit' : 'out'); }
+  const now = performance.now(); hgTick(now);
+  if (g.phase === 'warn' || g.phase === 'wait') { if (g.phase === 'warn') hgResolve(false, false, now, 'ใจร้อนเกินไป! กดก่อนเข็มจะหมุน'); return; }
+  if (g.phase !== 'spin') return;
+  const a = hgAngle(g, now), inGood = a >= g.start && a <= g.start + g.arc;
+  const inGreat = g.dir > 0 ? a >= g.start && a <= g.start + g.great : a >= g.start + g.arc - g.great && a <= g.start + g.arc;
+  hgResolve(inGood, inGood && inGreat, now);
+}
+function hgResolve(hit, perfect, now, why) {
+  const g = HG, p = g.c.p, wheel = $('hgBar');
+  if (hit) { g.hits++; if (perfect) g.perfect++; floatNum(perfect ? 'จุดตาย!' : 'เข้าเป้า!', POS.foe, perfect ? 'out crit' : 'out'); }
   else { g.misses++; floatNum('พลาด!', POS.me, 'in'); const fr = $('scene').closest('.scene-frame'); fr.classList.remove('shake'); void fr.offsetWidth; fr.classList.add('shake'); }
-  bar.classList.remove('hit', 'miss', 'perfect'); void bar.offsetWidth; bar.classList.add(perfect ? 'perfect' : hit ? 'hit' : 'miss');
-  $('hgMsg').textContent = perfect ? '💥 โจมตีจุดตายสมบูรณ์แบบ!' : hit ? '⚔️ เข้าเป้า! สัตว์วิญญาณเซถอย' : '💢 พลาด! สัตว์วิญญาณโต้กลับ';
-  const p = g.c.p;
+  if (wheel) { wheel.classList.remove('hit', 'miss', 'perfect'); void wheel.offsetWidth; wheel.classList.add(perfect ? 'perfect' : hit ? 'hit' : 'miss'); }
+  const m = $('hgMsg'); if (m) m.textContent = why || (perfect ? '💥 โจมตีจุดตายสมบูรณ์แบบ!' : hit ? '⚔️ เข้าเป้า! สัตว์วิญญาณเซถอย' : '💢 พลาด! สัตว์วิญญาณโต้กลับ');
   if (g.hits >= p.rounds || g.misses >= p.lives) {
     g.phase = 'done';
     const res = { ok: g.hits >= p.rounds, hits: g.hits, misses: g.misses, perfect: g.perfect };
-    $('hgMsg').textContent = res.ok ? '🏆 คุณล้มสัตว์วิญญาณได้แล้ว!' : '☠️ สัตว์วิญญาณเหนือกว่าคุณ…';
-    hgPaint(now);
+    if (m) m.textContent = res.ok ? '🏆 คุณล้มสัตว์วิญญาณได้แล้ว!' : '☠️ สัตว์วิญญาณเหนือกว่าคุณ…';
     setTimeout(() => { HG = null; run(() => finishHuntGame(S, res)); }, 1100);
     return;
   }
-  if (hit) { hgNewZone(g); g.speed *= 1.07; }
-  g.phase = 'pause'; g.until = now + 420;
-  hgPaint(now);
+  if (hit) g.speed *= 1.06;
+  hgNewZone(g);
+  g.phase = 'wait'; g.until = now + 450 + Math.random() * 700;
 }
 
 // ---------- overlay ----------

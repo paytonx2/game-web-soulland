@@ -756,3 +756,23 @@ body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-i
 .hg-msg { text-align: center; font-family: var(--head); font-size: 15px; color: var(--gold2); min-height: 22px; }
 .hg-btn { justify-self: center; min-width: 220px; font-size: 18px; }
 @media (max-width: 860px) { .hg-bar { height: 46px; } .hg-btn { width: 100%; min-height: 56px; } }
+
+/* ---------- มินิเกมแบบวงกลมหมุน ---------- */
+.hg-wheel { position: relative; width: min(240px, 62vw); aspect-ratio: 1; justify-self: center; cursor: pointer; touch-action: manipulation; border-radius: 50%; }
+.hg-wheel svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.hg-track { fill: rgba(10, 10, 9, 0.85); stroke: rgba(222, 212, 190, 0.22); stroke-width: 7; }
+.hg-good, .hg-great { fill: none; stroke-width: 9; transform-origin: 60px 60px; }
+.hg-good { stroke: #cfae68; filter: drop-shadow(0 0 4px rgba(207, 174, 104, 0.8)); }
+.hg-great { stroke: #fff; stroke-width: 10; filter: drop-shadow(0 0 5px var(--rc, #fff)); }
+#hgNeedle { transform-origin: 60px 60px; }
+#hgNeedle line { stroke: #e2574c; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 4px #ff5a4a); }
+#hgNeedle circle { fill: #e2574c; }
+.hg-core { position: absolute; inset: 34%; border-radius: 50%; display: grid; place-items: center; font-family: var(--head); font-size: 15px; letter-spacing: 1px; color: var(--gold2); background: radial-gradient(circle at 40% 35%, #3a3630, #121110); box-shadow: inset 0 0 0 1px rgba(207, 174, 104, 0.5), 0 0 16px rgba(0, 0, 0, 0.7); pointer-events: none; }
+.hg-wheel.warn .hg-core { color: #fff; background: radial-gradient(circle, #c7473a, #6e1d17); font-size: 30px; animation: hgWarn .25s ease-in-out infinite alternate; }
+@keyframes hgWarn { to { transform: scale(1.08); box-shadow: 0 0 22px rgba(226, 87, 76, 0.8); } }
+.hg-wheel.rev .hg-track { stroke: rgba(197, 139, 255, 0.45); }
+.hg-wheel.hit { animation: hgHitW .35s; } .hg-wheel.perfect { animation: hgPerfW .45s; } .hg-wheel.miss { animation: hgMissW .4s; }
+@keyframes hgHitW { 40% { box-shadow: 0 0 26px rgba(227, 200, 138, 0.8); } }
+@keyframes hgPerfW { 40% { box-shadow: 0 0 40px rgba(255, 255, 255, 0.9); transform: scale(1.05); } }
+@keyframes hgMissW { 20% { transform: translateX(-7px); box-shadow: 0 0 24px rgba(226, 87, 76, 0.8); } 40% { transform: translateX(7px); } 60% { transform: translateX(-3px); } }
+@media (max-width: 860px) { .hg-wheel { width: min(260px, 70vw); } }
