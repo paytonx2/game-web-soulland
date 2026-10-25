@@ -604,7 +604,7 @@ function showLanding() {
         <div class="kicker">斗罗大陆 · DOULUO LIFE SIMULATOR</div>
         <h1 class="title">เกิดในโลกวิญญาจารย์</h1>
         <p class="lede">ชีวิตหนึ่งชีวิต ในยุคเดียวกับ<b>ถังซาน</b> เลือกเกิดไม่ได้ แต่เลือกทางเดินได้ทุกปี</p>
-        <div class="btns cta"><button class="pbtn big" id="ovBorn">✦ เริ่มชีวิตใหม่</button>${canContinue ? `<button class="pbtn ghost" id="ovCont">ใช้ชีวิตต่อ · ${sv.name} อายุ ${sv.age}</button>` : ''}</div>
+        <div class="btns cta"><button class="pbtn big" id="ovBorn">✦ เริ่มชีวิตใหม่</button><button class="pbtn ghost" id="ovTop">🏆 ท็อปบอร์ด</button>${canContinue ? `<button class="pbtn ghost" id="ovCont">ใช้ชีวิตต่อ · ${sv.name} อายุ ${sv.age}</button>` : ''}</div>
         ${gr.length ? `<div class="hero-note">🪦 หอบรรพชนของคุณมี ${gr.length} ชีวิต · สูงสุด Lv.${Math.max(...gr.map(g => g.level))}</div>` : ''}
       </div>
     </section>
@@ -617,6 +617,7 @@ function showLanding() {
   drawScene($('ovScene'), { kind: 'city', tod: 'dusk', place: 'tiandou', seed: 7, hero: { age: 20, gender: 'M', cloth: '#3a2a12', rings: ['#f5c518', '#9b4dff', '#9b4dff', '#1b1b1b'], aura: '#ffd36a' }, foe: { age: 20, gender: 'F', cloth: '#5a1a1a', rings: ['#f5c518', '#f5c518', '#9b4dff'], aura: '#ff9d4a' } });
   $('ovBorn').onclick = showBirth;
   $('ovBit').onclick = () => { PIXMOJI.next(); bitLabel(); };
+  $('ovTop').onclick = () => showLeaderboard();
   if (typeof bitLabel === 'function') bitLabel();
   if (canContinue) $('ovCont').onclick = () => { S = sv; closeOverlay(); startGame(); };
 }
@@ -746,6 +747,7 @@ function showTomb() {
         <div class="sp-h">ขนาดการ์ด</div>
         ${Object.entries(CARD_SIZES).map(([k, z]) => `<label class="sp ${k === cardSize ? 'on' : ''}"><input type="radio" name="cardsize" value="${k}" ${k === cardSize ? 'checked' : ''}><i></i><span><b>${z.th}</b><small>${z.ratio}</small></span></label>`).join('')}
       </div>
+      <div id="lbBox">${lbTombHtml(s)}</div>
       <div class="sharebar">
         <button class="pbtn" id="bSave">💾 บันทึกการ์ด</button>
         <button class="pbtn ghost" id="bShare">🔗 แชร์การ์ด</button>
@@ -780,6 +782,7 @@ function showTomb() {
   $('bShare').onclick = () => shareStory(s, cardSize);
   $('bCopy').onclick = () => copyStory(s);
   $('bTxt').onclick = () => saveText(s);
+  lbTombBind(s);
   preview();
 }
 function showLog() {
@@ -822,6 +825,7 @@ function setTab(t) {
 $('mtabs').onclick = e => { const b = e.target.closest('.mtab'); if (b) setTab(b.dataset.t); };
 
 $('btnLog').onclick = showLog;
+$('btnTop').onclick = () => showLeaderboard();
 const bitLabel = () => document.querySelectorAll('.bitbtn, #btnBit').forEach(b => b.textContent = '🎮 ' + PIXMOJI.label());
 $('btnBit').onclick = () => { PIXMOJI.next(); bitLabel(); };
 bitLabel();
