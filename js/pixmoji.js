@@ -160,7 +160,7 @@ const PIXMOJI = (() => {
   map('🏥 🩺 🩹 🤒 ♿', 'medic'); map('🎁', 'gift'); map('🟢', 'dot'); map('🔴', 'dot', { n: 'r' }); map('♂', 'male'); map('♀', 'female'); map('🤖', 'robot'); map('🪦 🗿', 'tomb');
   map('⛵ 🚢', 'boat'); map('💨 🌬', 'wind'); map('⬆', 'arrowup'); map('➡', 'arrowright'); map('📍 📌', 'pin'); map('🪶 🖋 🖌', 'feather'); map('🌍 🌏', 'globe');
   map('📦 🧺 🪣 🪵 🧱 🧹 🏺 🪨', 'box'); map('🎎 🪭 🪀 🎓 🎁', 'gift'); map('🧮 🪟 📏 ♟', 'note'); map('💭 💬', 'note'); map('🧮', 'dice');
-  map('💢 💥', 'bolt', { y: 'r' }); map('⛰', 'mountain'); map('🎵 🎶', 'bell'); map('🐟', 'fish'); map('🪖', 'shield'); map('🛏', 'house'); map('🎪', 'temple'); map('🛤', 'map'); map('🦊', 'wolf', { s: 'o' });
+  map('💢 💥', 'bolt', { y: 'r' }); map('🥈', 'medal', { g: 's', G: 'S', y: 'w' }); map('🥉', 'medal', { g: 'o', G: 'T', y: 't' }); map('⛰', 'mountain'); map('🎵 🎶', 'bell'); map('🐟', 'fish'); map('🪖', 'shield'); map('🛏', 'house'); map('🎪', 'temple'); map('🛤', 'map'); map('🦊', 'wolf', { s: 'o' });
 
   const KEY = 'douluo_pixmoji_mode';
   const MODES = { 8: '8-BIT', 16: '16-BIT', 32: '32-BIT' };
