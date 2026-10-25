@@ -449,7 +449,7 @@ function awaken(s) {
     log(s, '🍀 ลูกแก้วมืดสนิทอยู่นาน… แล้วกะพริบแสงริบหรี่ในวินาทีสุดท้าย — ดวงชะตาไม่ทิ้งคุณ', 'gold');
   }
   const soul = soulOf(s);
-  log(s, `✨ วิญญาณยุทธ์ของคุณคือ <b>${soulLabel(soul.id)}</b> — ประเภท${TYPE_TH[soul.type]} · ระดับ${TIER_INFO[soul.tier].th}`, 'gold');
+  log(s, `✨ วิญญาณยุทธ์ของคุณคือ <b>${soulLabel(soul.id)}</b> — ประเภท${TYPE_TH[soul.type]} · ${TIER_INFO[soul.tier].th.startsWith("ระดับ") ? "" : "ระดับ"}${TIER_INFO[soul.tier].th}`, 'gold');
   if (s.souls.length > 1) log(s, `🌟🌟 ปาฏิหาริย์! คุณมี <b>วิญญาณยุทธ์คู่</b>: ${soulLabel(s.souls[1])}`, 'gold');
   if (s.innate === 0) { log(s, '💧 ลูกแก้วคริสตัลไม่ส่องแสง... คุณ <b>ไม่มีพลังวิญญาณแต่กำเนิด</b> ไม่อาจเป็นวิญญาจารย์ได้', 'bad'); add(s, 'mood', -20); }
   else {

@@ -486,14 +486,14 @@ function playBattle(b, done) {
 }
 
 // ---------- มินิเกมล่าวงแหวน: วงกลมหมุน กดให้ตรงจังหวะ ----------
-// แต่ละรอบ: รอสุ่มสั้น ๆ (มีสัญญาณเตือน) → เข็มหมุนหนึ่งรอบ → กดตอนเข็มอยู่ในช่องทอง (ต้นช่องสีขาว = สมบูรณ์แบบ)
-// เข็มหมุนครบรอบโดยไม่กด = พลาด · วงแหวนอายุสูง/ล่าเกินตัว: ช่องแคบ หมุนเร็ว และบางรอบหมุนกลับทิศ
+// เข็มหมุนวนไปเรื่อย ๆ จนกว่าผู้เล่นจะกด · กดตอนเข็มอยู่ในช่องทอง = เข้าเป้า (ต้นช่องสีขาว = สมบูรณ์แบบ) · กดนอกช่อง = พลาด
+// วงแหวนอายุสูง/ล่าเกินตัว: ช่องแคบ หมุนเร็ว และบางรอบหมุนกลับทิศ
 let HG = null;
 const HG_R = 46, HG_C = 2 * Math.PI * HG_R;
 function huntGameHtml(c) {
   const p = c.p, rt = RING_TIERS[p.t];
   return `<div class="q-title"><span class="bolt">🏹</span>ล่า${c.th} อายุ ${fmt(c.years)} ปี</div>
-    <div class="note">ความยาก <b>${p.label}</b> · เมื่อเข็มหมุนเข้าช่องทอง กด <b>Space</b> หรือแตะวงกลม · ต้นช่องสีขาว = โจมตีจุดตาย</div>
+    <div class="note">ความยาก <b>${p.label}</b> · เข็มหมุนไม่หยุด รอจังหวะแล้วกด <b>Space</b> หรือแตะวงกลมตอนเข็มอยู่ในช่องทอง · ต้นช่องสีขาว = โจมตีจุดตาย · กดนอกช่อง = พลาด</div>
     <div class="hgame" style="--rc:${rt.color}">
       <div class="hg-top"><span id="hgRound"></span><span id="hgLives"></span></div>
       <div class="hg-wheel" id="hgBar">
@@ -527,7 +527,7 @@ function startHuntGame() {
   requestAnimationFrame(loop);
 }
 // มุมของเข็ม (องศา เริ่มที่ 12 นาฬิกา หมุนตามเข็ม หรือทวนเมื่อ dir = -1)
-const hgAngle = (g, now) => { const k = clamp((now - g.t0) / g.T, 0, 1) * 360; return g.dir > 0 ? k : 360 - k; };
+const hgAngle = (g, now) => { const k = (Math.max(0, now - g.t0) / g.T * 360) % 360; return g.dir > 0 ? k : 360 - k; };
 function hgPaint(now = performance.now()) {
   const g = HG; if (!g || !$('hgNeedle')) return;
   const set = (el, from, len) => { el.style.strokeDasharray = `${len / 360 * HG_C} ${HG_C}`; el.style.transform = `rotate(${from - 90}deg)`; };
@@ -546,15 +546,13 @@ function hgPaint(now = performance.now()) {
 }
 function hgTick(now) {
   const g = HG; if (!g) return;
-  if (g.phase === 'wait' && now >= g.until) { g.phase = 'warn'; g.until = now + 380 + Math.random() * 500; const m = $('hgMsg'); if (m) m.textContent = g.dir < 0 ? '⚠️ ระวัง! มันหมุนตัวสวนทาง' : '⚠️ มันกำลังจะจู่โจม!'; }
-  else if (g.phase === 'warn' && now >= g.until) { g.phase = 'spin'; g.t0 = now; }
-  else if (g.phase === 'spin' && now - g.t0 >= g.T) hgResolve(false, false, now); // หมุนครบรอบโดยไม่กด
+  // เข็มหมุนวนไม่หยุดจนกว่าผู้เล่นจะกดเอง
+  if (g.phase === 'wait' && now >= g.until) { g.phase = 'spin'; g.t0 = now; const m = $('hgMsg'); if (m && g.dir < 0) m.textContent = '⚠️ ระวัง! รอบนี้หมุนสวนทาง'; }
   hgPaint(now);
 }
 function huntPress() {
   const g = HG; if (!g) return;
   const now = performance.now(); hgTick(now);
-  if (g.phase === 'warn' || g.phase === 'wait') { if (g.phase === 'warn') hgResolve(false, false, now, 'ใจร้อนเกินไป! กดก่อนเข็มจะหมุน'); return; }
   if (g.phase !== 'spin') return;
   const a = hgAngle(g, now), inGood = a >= g.start && a <= g.start + g.arc;
   const inGreat = g.dir > 0 ? a >= g.start && a <= g.start + g.great : a >= g.start + g.arc - g.great && a <= g.start + g.arc;
@@ -711,37 +709,32 @@ async function shareStory(s) {
 
 function showTomb() {
   const s = S, st = lifeStory(s);
-  overlay(`<div class="endwrap">
-    <div class="panel tomb-card">
-      <h2 class="title" style="font-size:30px">${s.ascended ? '🌟 ขึ้นสู่อาณาจักรเทพ' : 'ณ ที่นี้ ผู้กล้าได้หลับใหล'}</h2>
-      <div class="stone"><div class="nm">${s.name}</div><div class="zh">${s.zh}</div>${s.title ? `<div class="gold">${s.title}</div>` : ''}<div>อายุ ${s.age} ปี</div></div>
+  overlay(`<div class="tombwrap">
+    <div class="cardcol"><div class="cardprev916" id="cardPrev"><div class="cardload">กำลังวาดการ์ดชีวิต…</div></div></div>
+    <div class="panel tomb-side">
+      <h2 class="title" style="font-size:32px">${s.ascended ? '🌟 ขึ้นสู่อาณาจักรเทพ' : 'ณ ที่นี้ ผู้กล้าได้หลับใหล'}</h2>
       <div class="verdict">${st.verdict}</div>
       <div class="cause">${s.cause}</div>
-      <div class="score">คะแนนชีวิต <b>${fmt(st.score)}</b></div>
-      ${lifeMapHtml(s)}
       <div class="sharebar">
-        <button class="pbtn" id="bSave">💾 บันทึกเป็นรูปภาพ</button>
-        <button class="pbtn ghost" id="bShare">🔗 แชร์</button>
+        <button class="pbtn" id="bSave">💾 บันทึกการ์ด (9:16)</button>
+        <button class="pbtn ghost" id="bShare">🔗 แชร์การ์ด</button>
         <button class="pbtn ghost" id="bCopy">📋 คัดลอกเรื่องราว</button>
         <button class="pbtn ghost" id="bTxt">📄 ไฟล์ข้อความ</button>
       </div>
+      <details class="lifetext"><summary>📖 อ่านเรื่องราวชีวิตฉบับเต็ม</summary>
+        ${st.paragraphs.map(p => `<p>${p}</p>`).join('')}
+        ${st.highlights.length ? `<h4>✨ ช่วงเวลาสำคัญ</h4><ul>${st.highlights.map(h => `<li><b>อายุ ${h.age}</b> · ${h.t}</li>`).join('')}</ul>` : ''}
+      </details>
       <div class="btns" style="justify-content:center"><button class="pbtn ghost" id="ovClose">📜 บันทึกชีวิตทั้งหมด</button><button class="pbtn" id="ovNew">🔄 เกิดใหม่</button></div>
     </div>
-    <div class="panel story">
-      <h3 class="sth">📖 เรื่องราวชีวิตของ${s.name}</h3>
-      ${st.paragraphs.map(p => `<p>${p}</p>`).join('')}
-      ${st.highlights.length ? `<h4>✨ ช่วงเวลาสำคัญ</h4><ul>${st.highlights.map(h => `<li><b>อายุ ${h.age}</b> · ${h.t}</li>`).join('')}</ul>` : ''}
-      <h4>🖼️ การ์ดชีวิต (สำหรับแชร์)</h4>
-      <div class="cardprev" id="cardPrev">กำลังวาดการ์ด...</div>
-    </div>
-  </div>`);
+  </div>`, true);
   $('ovClose').onclick = () => { closeOverlay(); showLog(); };
   $('ovNew').onclick = showBirth;
   $('bSave').onclick = () => saveCard(s);
   $('bShare').onclick = () => shareStory(s);
   $('bCopy').onclick = () => copyStory(s);
   $('bTxt').onclick = () => saveText(s);
-  lifeCardCanvas(s).then(cv => { const img = new Image(); img.src = cv.toDataURL('image/png'); img.alt = 'การ์ดชีวิต'; const box = $('cardPrev'); if (box) { box.innerHTML = ''; box.appendChild(img); } });
+  lifeCardCanvas(s).then(cv => { const img = new Image(); img.src = cv.toDataURL('image/png'); img.alt = `การ์ดชีวิตของ${s.name}`; const box = $('cardPrev'); if (box) { box.innerHTML = ''; box.appendChild(img); } });
 }
 function showLog() {
   overlay(`<div class="panel tomb-card" style="width:min(760px,100%)"><h2 class="title" style="font-size:28px">📜 บันทึกชีวิต</h2>
