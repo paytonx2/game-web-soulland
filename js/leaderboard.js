@@ -5,7 +5,7 @@
 // · สิทธิ์และการตรวจความถูกต้องอยู่ที่ฐานข้อมูล (supabase/leaderboard.sql)
 // ============================================================
 const LB = {
-  url: '', // ← Project URL เช่น https://xxxxxxxx.supabase.co (Project Settings → Data API)
+  url: 'https://qyalypskqandnhrbrgqp.supabase.co', // Project URL (Project Settings → Data API)
   key: 'sb_publishable_MGVkSaeGlcuWcur0aOgjpA_Kmt5fF4U',
   table: 'leaderboard',
 };
