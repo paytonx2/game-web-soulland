@@ -3,6 +3,7 @@
 -- วิธีใช้: Supabase Dashboard → SQL Editor → New query → วางทั้งไฟล์นี้ → Run (รันซ้ำได้ ไม่พัง)
 -- สิทธิ์: ผู้เล่นทั่วไป (publishable key) อ่านได้ทั้งหมด และเพิ่มได้อย่างเดียว — แก้/ลบไม่ได้
 -- ลบรายการที่โกงหรือชื่อไม่เหมาะสม: Table Editor → leaderboard → เลือกแถว → Delete
+-- ตั้งค่าใหม่ตั้งแต่ต้น: รันไฟล์นี้ แล้วรัน 002_power_score.sql ต่อ
 -- ============================================================
 
 create table if not exists public.leaderboard (

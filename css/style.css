@@ -949,3 +949,14 @@ html[data-bit="8"] img.pxe { width: 1.3em; height: 1.3em; }
   .lbd { grid-template-columns: 1fr; padding: 0 14px 12px 50px; }
   .lbtitle { font-size: 28px; }
 }
+
+/* คะแนนความเก่งบนท็อปบอร์ด */
+.lbr summary { grid-template-columns: 44px minmax(0, 2fr) 100px 84px minmax(0, 1.3fr) 140px; }
+.lbp b { font-family: var(--head); font-size: 18px; color: var(--gold2); line-height: 1.4; }
+.lbp small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.lbpw { font-family: var(--head); font-size: 13.5px; color: var(--muted); }
+.lbpw b { font-size: 18px; color: var(--gold2); }
+@media (max-width: 860px) {
+  .lbr summary { grid-template-columns: 34px minmax(0, 1fr) auto; grid-template-areas: 'n c p' 'n t l' 'n r r'; }
+  .lbp { grid-area: p; text-align: right; } .lbl { grid-area: l; text-align: right; }
+}

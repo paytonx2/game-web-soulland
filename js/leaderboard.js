@@ -22,6 +22,17 @@ const lbSentKey = 'douluo_lb_sent';
 const lbSent = () => { try { return JSON.parse(localStorage.getItem(lbSentKey)) || []; } catch (e) { return []; } };
 const lbMark = id => { try { localStorage.setItem(lbSentKey, JSON.stringify([...lbSent(), id].slice(-200))); } catch (e) {} };
 
+// คะแนนความเก่ง — สูตรเดียวกับฟังก์ชัน lb_power ในฐานข้อมูล (ฐานข้อมูลคำนวณเองตอนบันทึก ค่านี้ใช้แสดงก่อนส่งเท่านั้น)
+function lbSoul(s) {
+  if (!s.awakened) return { tier: 1, over: 0, twin: false };
+  const souls = s.souls.map(id => SOUL_BY_ID[id]), best = souls.reduce((a, b) => b.tier + (b.over || 0) > a.tier + (a.over || 0) ? b : a);
+  return { tier: best.tier, over: clamp(best.over || 0, -2, 3), twin: souls.length > 1 };
+}
+function lbPower(p) {
+  const ringPts = p.rings.reduce((a, y) => a + Math.round(80 * Math.pow(Math.log10(Math.max(10, y)), 1.6)), 0);
+  return p.level * 100 + ringPts + [0, 0, 400, 900, 1600][clamp(p.soul_tier, 1, 5) - 1] + clamp(p.soul_over, -2, 3) * 400 + (p.twin_soul ? 800 : 0)
+    + p.bones * 400 + (p.ascended ? 5000 : (p.god_stage || 0) * 300) + Math.min(Math.max(p.fame, 0), 1000) + Math.min(Math.max(p.fights, 0) * 2, 500);
+}
 function lbPayload(s, player) {
   const god = s.god ? GODS.find(g => g.id === s.god.id) : null;
   const top = s.rings.length ? s.rings.reduce((a, b) => b.years > a.years ? b : a) : null;
@@ -34,14 +45,15 @@ function lbPayload(s, player) {
     mutated: (s.mutations || []).length > 0, rings: s.rings.map(r => Math.round(r.years)), bones: s.bones.length,
     top_skill: top ? `「${top.skill}」${fmt(top.years)} ปี` : null, god: godName, god_stage: s.god ? s.god.stage : null,
     ascended: !!s.ascended, cause: s.cause, fights: s.fights || 0, game_version: s.v,
+    soul_tier: lbSoul(s).tier, soul_over: lbSoul(s).over, twin_soul: lbSoul(s).twin,
   };
 }
 async function lbSubmit(s, player) {
   if (!lbReady()) throw new Error(LB_NOT_READY);
-  const res = await fetch(`${LB.url}/rest/v1/${LB.table}`, {
-    method: 'POST', headers: { apikey: LB.key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify(lbPayload(s, player)),
-  });
+  const send = body => fetch(`${LB.url}/rest/v1/${LB.table}`, { method: 'POST', headers: { apikey: LB.key, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(body) });
+  let body = lbPayload(s, player), res = await send(body);
+  // ฐานข้อมูลยังไม่ได้อัปเดตคอลัมน์คะแนน (ยังไม่ได้รัน 002_power_score.sql) → ส่งแบบเดิม
+  if (res.status === 400) { const t = await res.clone().text(); if (/soul_tier|soul_over|twin_soul/.test(t)) { const { soul_tier, soul_over, twin_soul, ...old } = body; res = await send(old); } }
   if (res.status === 409) { lbMark(s.id); throw new Error('ชีวิตนี้ถูกส่งขึ้นท็อปบอร์ดไปแล้ว'); }
   if (!res.ok) { let m = ''; try { m = (await res.json()).message || ''; } catch (e) {} throw new Error(m || `ส่งไม่สำเร็จ (${res.status})`); }
   lbMark(s.id);
@@ -53,10 +65,11 @@ const LB_NOT_READY = 'ท็อปบอร์ดกำลังเตรีย�
 async function lbFetch(tab) {
   if (!lbReady()) throw new Error(LB_NOT_READY);
   const hit = lbCache[tab]; if (hit && Date.now() - hit.at < 60000) return hit.rows;
-  let q = 'select=*&order=ascended.desc,level.desc,ring_total.desc,fame.desc,created_at.asc&limit=100';
+  let q = 'select=*&order=power.desc,level.desc,created_at.asc&limit=100';
   if (tab === 'gods') q += '&god=not.is.null';
   if (tab === 'week') q += `&created_at=gte.${new Date(Date.now() - 7 * 864e5).toISOString()}`;
-  const res = await fetch(`${LB.url}/rest/v1/${LB.table}?${q}`, { headers: { apikey: LB.key } });
+  let res = await fetch(`${LB.url}/rest/v1/${LB.table}?${q}`, { headers: { apikey: LB.key } });
+  if (res.status === 400) res = await fetch(`${LB.url}/rest/v1/${LB.table}?${q.replace('order=power.desc,', 'order=ascended.desc,')}`, { headers: { apikey: LB.key } });
   if (res.status === 404) throw new Error(LB_NOT_READY);
   if (!res.ok) throw new Error('โหลดท็อปบอร์ดไม่สำเร็จ ลองใหม่อีกครั้ง');
   const rows = await res.json();
@@ -70,7 +83,8 @@ function lbTombHtml(s) {
   if (!lbReady()) return '<div class="lbsend off"><b>🏆 ท็อปบอร์ด</b><small>ระบบท็อปบอร์ดยังไม่ได้ตั้งค่า</small></div>';
   if (lbSent().includes(s.id)) return '<div class="lbsend done"><b>🏆 ส่งขึ้นท็อปบอร์ดแล้ว</b><button class="pbtn ghost" id="lbOpen">ดูท็อปบอร์ด</button></div>';
   let last = ''; try { last = localStorage.getItem('douluo_player') || ''; } catch (e) {}
-  return `<div class="lbsend"><b>🏆 ส่งชีวิตนี้ขึ้นท็อปบอร์ด</b><small>ใส่ชื่อของคุณ (ผู้เล่น) ได้ไม่เกิน 20 ตัวอักษร · ส่งได้ครั้งเดียว</small>
+  const pw = lbPower(lbPayload(s, ''));
+  return `<div class="lbsend"><b>🏆 ส่งชีวิตนี้ขึ้นท็อปบอร์ด</b><div class="lbpw">คะแนนความเก่ง <b>${fmt(pw)}</b></div><small>ใส่ชื่อของคุณ (ผู้เล่น) ได้ไม่เกิน 20 ตัวอักษร · ส่งได้ครั้งเดียว</small>
     <div class="lbrow"><input id="lbName" maxlength="20" placeholder="ชื่อผู้เล่น" value="${esc(last)}" autocomplete="nickname"><button class="pbtn" id="lbSend">ส่งขึ้นบอร์ด</button></div><div class="lbmsg" id="lbMsg"></div></div>`;
 }
 function lbTombBind(s) {
@@ -96,12 +110,13 @@ function lbRowHtml(r, i) {
     <summary>
       <span class="lbn">${medal}</span>
       <span class="lbc"><b>${esc(r.char_name)}</b> <span class="zh">${esc(r.char_zh)}</span><small>เล่นโดย ${esc(r.player_name)} · ${esc(r.birthplace)}</small></span>
+      <span class="lbp"><b>${fmt(r.power || 0)}</b><small>คะแนนความเก่ง</small></span>
       <span class="lbl"><b>Lv.${r.level}</b><small>${esc(r.rank)}</small></span>
       <span class="lbt">${r.ascended ? `<em class="gtag">สืบทอด${esc(r.god)}</em>` : r.title ? `<em>${esc(r.title)}</em>` : ''}<small>${esc(fr.th)}</small></span>
       <span class="lbrings">${rings}</span>
     </summary>
     <div class="lbd">
-      <div><small>วิญญาณยุทธ์</small>${esc(r.soul || '—')}${r.mutated ? ' · กลายพันธุ์' : ''}</div>
+      <div><small>วิญญาณยุทธ์</small>${esc(r.soul || '—')}${r.mutated ? ' · กลายพันธุ์' : ''}${r.twin_soul ? ' · วิญญาณยุทธ์คู่' : ''}</div>
       <div><small>ทักษะที่แกร่งที่สุด</small>${esc(r.top_skill || '—')}</div>
       <div><small>ฐานะ · อายุ</small>${esc(r.family)} · ${r.age} ปี</div>
       <div><small>ผ่านศึก · กระดูกวิญญาณ</small>${r.fights} ครั้ง · ${r.bones} ชิ้น</div>
@@ -113,7 +128,7 @@ async function showLeaderboard() {
   const tabs = [['all', 'ทั้งหมด'], ['gods', 'ผู้สืบทอดเทพ'], ['week', '7 วันล่าสุด']];
   overlay(`<div class="panel lbpanel"><div class="lbhead"><h2 class="title lbtitle">🏆 ท็อปบอร์ด</h2><button class="pbtn ghost" id="lbClose">ปิด</button></div>
     <div class="lbtabs">${tabs.map(([k, t]) => `<button class="cat ${k === lbTab ? 'on' : ''}" data-lbt="${k}">${t}</button>`).join('')}</div>
-    <div class="lbnote">100 อันดับแรก · ชีวิตที่จากไปด้วยระดับ 70 ขึ้นไป หรือสืบทอดเป็นเทพ · เรียงตาม ผู้สืบทอดเทพ → ระดับ → อายุวงแหวนรวม → ชื่อเสียง</div>
+    <div class="lbnote">100 อันดับแรก · ชีวิตที่จากไปด้วยระดับ 70 ขึ้นไป หรือสืบทอดเป็นเทพ · เรียงตามคะแนนความเก่ง (ระดับ · วงแหวน · ความดีของวิญญาณยุทธ์ · กระดูกวิญญาณ · บททดสอบเทพ · ชื่อเสียง · ประสบการณ์ศึก)</div>
     <div class="lblist" id="lbList"><div class="cardload">กำลังโหลด…</div></div></div>`, true);
   $('lbClose').onclick = () => { if (S && !S.alive) showTomb(); else if (S && !$('game').hidden) closeOverlay(); else showLanding(); };
   document.querySelectorAll('[data-lbt]').forEach(b => b.onclick = () => { lbTab = b.dataset.lbt; showLeaderboard(); });
