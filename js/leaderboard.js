@@ -37,7 +37,7 @@ function lbPayload(s, player) {
   };
 }
 async function lbSubmit(s, player) {
-  if (!lbReady()) throw new Error('ระบบท็อปบอร์ดยังไม่ได้ตั้งค่า');
+  if (!lbReady()) throw new Error(LB_NOT_READY);
   const res = await fetch(`${LB.url}/rest/v1/${LB.table}`, {
     method: 'POST', headers: { apikey: LB.key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(lbPayload(s, player)),
@@ -45,15 +45,23 @@ async function lbSubmit(s, player) {
   if (res.status === 409) { lbMark(s.id); throw new Error('ชีวิตนี้ถูกส่งขึ้นท็อปบอร์ดไปแล้ว'); }
   if (!res.ok) { let m = ''; try { m = (await res.json()).message || ''; } catch (e) {} throw new Error(m || `ส่งไม่สำเร็จ (${res.status})`); }
   lbMark(s.id);
+  for (const k in lbCache) delete lbCache[k]; // ส่งใหม่แล้ว ให้โหลดบอร์ดใหม่
 }
+// เก็บผลไว้ 1 นาทีต่อแท็บ — ลดการดึงข้อมูลซ้ำเมื่อผู้เล่นเปิด/ปิดบ่อย
+const lbCache = {};
+const LB_NOT_READY = 'ท็อปบอร์ดกำลังเตรียมพร้อม ลองใหม่อีกครั้งภายหลัง';
 async function lbFetch(tab) {
-  if (!lbReady()) throw new Error('ระบบท็อปบอร์ดยังไม่ได้ตั้งค่า');
+  if (!lbReady()) throw new Error(LB_NOT_READY);
+  const hit = lbCache[tab]; if (hit && Date.now() - hit.at < 60000) return hit.rows;
   let q = 'select=*&order=ascended.desc,level.desc,ring_total.desc,fame.desc,created_at.asc&limit=100';
   if (tab === 'gods') q += '&god=not.is.null';
   if (tab === 'week') q += `&created_at=gte.${new Date(Date.now() - 7 * 864e5).toISOString()}`;
   const res = await fetch(`${LB.url}/rest/v1/${LB.table}?${q}`, { headers: { apikey: LB.key } });
-  if (!res.ok) throw new Error(`โหลดไม่สำเร็จ (${res.status})`);
-  return res.json();
+  if (res.status === 404) throw new Error(LB_NOT_READY);
+  if (!res.ok) throw new Error('โหลดท็อปบอร์ดไม่สำเร็จ ลองใหม่อีกครั้ง');
+  const rows = await res.json();
+  lbCache[tab] = { at: Date.now(), rows };
+  return rows;
 }
 
 // ---------- ส่วนส่งในหน้าสรุปหลังตาย ----------
@@ -105,7 +113,7 @@ async function showLeaderboard() {
   const tabs = [['all', 'ทั้งหมด'], ['gods', 'ผู้สืบทอดเทพ'], ['week', '7 วันล่าสุด']];
   overlay(`<div class="panel lbpanel"><div class="lbhead"><h2 class="title lbtitle">🏆 ท็อปบอร์ด</h2><button class="pbtn ghost" id="lbClose">ปิด</button></div>
     <div class="lbtabs">${tabs.map(([k, t]) => `<button class="cat ${k === lbTab ? 'on' : ''}" data-lbt="${k}">${t}</button>`).join('')}</div>
-    <div class="lbnote">ชีวิตที่จากไปด้วยระดับ 70 ขึ้นไป หรือสืบทอดเป็นเทพ · เรียงตาม ผู้สืบทอดเทพ → ระดับ → อายุวงแหวนรวม → ชื่อเสียง</div>
+    <div class="lbnote">100 อันดับแรก · ชีวิตที่จากไปด้วยระดับ 70 ขึ้นไป หรือสืบทอดเป็นเทพ · เรียงตาม ผู้สืบทอดเทพ → ระดับ → อายุวงแหวนรวม → ชื่อเสียง</div>
     <div class="lblist" id="lbList"><div class="cardload">กำลังโหลด…</div></div></div>`, true);
   $('lbClose').onclick = () => { if (S && !S.alive) showTomb(); else if (S && !$('game').hidden) closeOverlay(); else showLanding(); };
   document.querySelectorAll('[data-lbt]').forEach(b => b.onclick = () => { lbTab = b.dataset.lbt; showLeaderboard(); });
